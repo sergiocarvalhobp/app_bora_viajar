@@ -7,8 +7,9 @@ plugins {
 
 android {
     namespace = "com.example.boraviajar_app"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Alinhado aos plugins (Firebase, maps, lifecycle, etc.) — retrocompatível.
+    compileSdk = 35
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -28,6 +29,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // flutter_appauth — deve coincidir com o scheme de AppConstants.auth0RedirectUri (br.com.boraviajar://callback)
+        manifestPlaceholders["appAuthRedirectScheme"] = "br.com.boraviajar"
     }
 
     buildTypes {

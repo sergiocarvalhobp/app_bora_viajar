@@ -167,7 +167,7 @@ class _HeroBackground extends StatelessWidget {
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
                 colors: [
-                  Colors.black.withValues(alpha: 0.5),
+                  Colors.black.withOpacity( 0.5),
                   Colors.transparent,
                 ],
               ),
@@ -198,7 +198,7 @@ class _HeroBackground extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Nunito',
                     fontSize: 14,
-                    color: Colors.white.withValues(alpha: 0.85),
+                    color: Colors.white.withOpacity( 0.85),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -716,7 +716,7 @@ class _BottomAction extends StatelessWidget {
         border: const Border(top: BorderSide(color: AppColors.sand)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.bark.withValues(alpha: 0.08),
+            color: AppColors.bark.withOpacity( 0.08),
             blurRadius: 20,
             offset: const Offset(0, -4),
           ),
@@ -852,9 +852,9 @@ class _ChatButton extends StatelessWidget {
       child: Container(
         width: 52, height: 52,
         decoration: BoxDecoration(
-          color: AppColors.forest.withValues(alpha: 0.1),
+          color: AppColors.forest.withOpacity( 0.1),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.forest.withValues(alpha: 0.3)),
+          border: Border.all(color: AppColors.forest.withOpacity( 0.3)),
         ),
         child: const Icon(
           Icons.chat_bubble_outline_rounded,
@@ -877,7 +877,7 @@ class _BackButton extends StatelessWidget {
         onTap: () => context.pop(),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.3),
+            color: Colors.black.withOpacity( 0.3),
             shape: BoxShape.circle,
           ),
           padding: const EdgeInsets.all(8),
@@ -898,7 +898,7 @@ class _EditButton extends StatelessWidget {
     return IconButton(
       icon: Container(
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.3),
+          color: Colors.black.withOpacity( 0.3),
           shape: BoxShape.circle,
         ),
         padding: const EdgeInsets.all(6),
@@ -926,7 +926,7 @@ class _ShareButton extends StatelessWidget {
         },
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.3),
+            color: Colors.black.withOpacity( 0.3),
             shape: BoxShape.circle,
           ),
           padding: const EdgeInsets.all(8),
@@ -949,8 +949,8 @@ class _TipoBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
         color: isLider
-            ? AppColors.forest.withValues(alpha: 0.12)
-            : AppColors.terra.withValues(alpha: 0.12),
+            ? AppColors.forest.withOpacity( 0.12)
+            : AppColors.terra.withOpacity( 0.12),
         borderRadius: BorderRadius.circular(100),
       ),
       child: Row(
@@ -1063,7 +1063,7 @@ class _BadgeLider extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.forest.withValues(alpha: 0.12),
+        color: AppColors.forest.withOpacity( 0.12),
         borderRadius: BorderRadius.circular(100),
       ),
       child: const Text(

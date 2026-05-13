@@ -63,7 +63,7 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
                       style: TextStyle(
                         fontFamily: 'Nunito',
                         fontSize: 13,
-                        color: Colors.white.withValues(alpha: 0.8),
+                        color: Colors.white.withOpacity( 0.8),
                       ),
                     ),
                   ),
@@ -88,7 +88,7 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
                     ),
                   ),
                   style: TextButton.styleFrom(
-                    backgroundColor: Colors.white.withValues(alpha: 0.15),
+                    backgroundColor: Colors.white.withOpacity( 0.15),
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     shape: RoundedRectangleBorder(
@@ -509,7 +509,12 @@ class _FiltrosSheet extends ConsumerWidget {
               Switch(
                 value: filters.apenasComVagas,
                 onChanged: (_) => notifier.toggleApenasComVagas(),
-                activeThumbColor: AppColors.forest,
+                thumbColor: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return AppColors.forest;
+                  }
+                  return null;
+                }),
               ),
             ],
           ),

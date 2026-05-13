@@ -158,7 +158,7 @@ class _ProfileBody extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppColors.forest.withValues(alpha: 0.1),
+                          color: AppColors.forest.withOpacity( 0.1),
                           borderRadius: BorderRadius.circular(100),
                         ),
                         child: const Text('Viajante',

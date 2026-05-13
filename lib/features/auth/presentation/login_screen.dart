@@ -73,10 +73,10 @@ class _HeroSection extends StatelessWidget {
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
+                  color: Colors.white.withOpacity( 0.15),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.3),
+                    color: Colors.white.withOpacity( 0.3),
                     width: 1.5,
                   ),
                 ),
@@ -112,7 +112,7 @@ class _HeroSection extends StatelessWidget {
                   fontFamily: 'Nunito',
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
-                  color: Colors.white.withValues(alpha: 0.85),
+                  color: Colors.white.withOpacity( 0.85),
                   height: 1.5,
                 ),
               ),
@@ -149,10 +149,10 @@ class _DestinationChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
+        color: Colors.white.withOpacity( 0.12),
         borderRadius: BorderRadius.circular(100),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.25),
+          color: Colors.white.withOpacity( 0.25),
         ),
       ),
       child: Text(
@@ -241,7 +241,7 @@ class _LoginCard extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'Nunito',
                 fontSize: 11,
-                color: AppColors.barkMuted.withValues(alpha: 0.7),
+                color: AppColors.barkMuted.withOpacity( 0.7),
                 height: 1.5,
               ),
             ),
@@ -428,7 +428,7 @@ class _DotPatternPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.06)
+      ..color = Colors.white.withOpacity( 0.06)
       ..style = PaintingStyle.fill;
 
     const spacing = 24.0;

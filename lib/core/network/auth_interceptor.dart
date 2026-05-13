@@ -8,9 +8,8 @@ part 'auth_interceptor.g.dart';
 
 /// Interceptor Dio que:
 ///   1. Lê o JWT do SecureStorage antes de cada requisição.
-///   2. Injeta o token no header Authorization (Bearer) E como cookie
-///      "app_session_id" — o backend aceita ambos os formatos.
-///   3. Em respostas 401, limpa o token local (sessão expirada no servidor).
+///   2. Injeta `Authorization: Bearer` e o cookie de sessão (`AppConstants.sessionKey`).
+///   3. Em 401, apaga o token local para forçar novo login.
 @riverpod
 AuthInterceptor authInterceptor(Ref ref) {
   final storage = ref.watch(sessionStorageProvider);
@@ -32,8 +31,7 @@ class AuthInterceptor extends Interceptor {
       // Header Authorization (padrão REST)
       options.headers['Authorization'] = 'Bearer $token';
 
-      // Cookie "app_session_id" — forma que o backend Node valida a sessão.
-      // O sdk.authenticateRequest() lê os cookies do header Cookie.
+      // Cookie de sessão — o backend costuma ler o header `Cookie`.
       final existing = options.headers['Cookie'] as String?;
       final cookieHeader = existing != null
           ? '$existing; app_session_id=$token'

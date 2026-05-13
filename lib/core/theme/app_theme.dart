@@ -251,7 +251,7 @@ abstract final class AppTheme {
       ),
 
       // ── Card ───────────────────────────────────────────────────────────
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         color: Colors.white,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -381,7 +381,7 @@ abstract final class AppTheme {
         type: BottomNavigationBarType.fixed,
       ),
 
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         color: AppColors.darkSurface,
         elevation: 0,
         shape: RoundedRectangleBorder(

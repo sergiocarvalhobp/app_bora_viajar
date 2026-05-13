@@ -1,25 +1,25 @@
-/// Variáveis de ambiente do app.
+/// Variáveis de ambiente do app (`--dart-define=...` no `flutter run` / build).
 ///
-/// No Flutter, são passadas via --dart-define em tempo de build:
-///   flutter run --dart-define=BACKEND_URL=https://boraviajar.com.br
-///
-/// Para desenvolvimento local:
-///   flutter run --dart-define=BACKEND_URL=http://10.0.2.2:3000
-///   (10.0.2.2 é o localhost da máquina host visto pelo emulador Android)
+/// Os valores padrão de Auth0 espelham o `.env` do backend Bora Viajar em dev
+/// (somente o que é público: domínio do tenant e conexão). **Nunca** coloque
+/// `AUTH0_CLIENT_SECRET`, `JWT_SECRET` ou `DATABASE_URL` no app Flutter.
 abstract final class AppEnv {
-  /// URL base do backend Node/Express.
-  /// Produção:    https://boraviajar.com.br
-  /// Android emu: http://10.0.2.2:3000
-  /// iOS sim:     http://localhost:3000
+  /// URL base do backend (sem barra final).
+  /// Emulador Android → host: `http://10.0.2.2:PORTA` (ajuste a porta se mudar).
   static const backendUrl = String.fromEnvironment(
     'BACKEND_URL',
     defaultValue: 'http://10.0.2.2:3000',
   );
 
-  /// Tenant do Auth0 (sem https://).
-  /// Exemplo: meutenant.us.auth0.com
+  /// Tenant Auth0 (sem `https://`) — mesmo `AUTH0_DOMAIN` do `.env` do servidor.
   static const auth0Domain = String.fromEnvironment(
     'AUTH0_DOMAIN',
-    defaultValue: '',
+    defaultValue: 'dev-ke3vsuw11znodjp3.us.auth0.com',
+  );
+
+  /// Conexão Auth0 — mesmo `AUTH0_CONNECTION` do `.env` do servidor.
+  static const auth0Connection = String.fromEnvironment(
+    'AUTH0_CONNECTION',
+    defaultValue: 'google-oauth2',
   );
 }

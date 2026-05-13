@@ -28,7 +28,7 @@ class TripCard extends StatelessWidget {
           border: Border.all(color: AppColors.sand),
           boxShadow: [
             BoxShadow(
-              color: AppColors.bark.withValues(alpha: 0.07),
+              color: AppColors.bark.withOpacity( 0.07),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -234,7 +234,7 @@ class _DestinationImage extends StatelessWidget {
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
                 colors: [
-                  Colors.black.withValues(alpha: 0.3),
+                  Colors.black.withOpacity( 0.3),
                   Colors.transparent,
                 ],
               ),
@@ -259,8 +259,8 @@ class _TipoBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: isLider
-            ? AppColors.forest.withValues(alpha: 0.12)
-            : AppColors.terra.withValues(alpha: 0.12),
+            ? AppColors.forest.withOpacity( 0.12)
+            : AppColors.terra.withOpacity( 0.12),
         borderRadius: BorderRadius.circular(100),
       ),
       child: Row(

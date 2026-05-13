@@ -1,6 +1,8 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:riverpod/riverpod.dart';
 
+import '../../../core/errors/app_exception.dart';
+import '../../../core/errors/error_handler.dart';
 import '../data/auth_repository.dart';
 import '../domain/user_model.dart';
 
@@ -65,7 +67,10 @@ class AuthNotifier extends _$AuthNotifier {
       final user = await _repo.loginWithGoogle();
       state = AuthAuthenticated(user);
     } catch (e) {
-      state = AuthError(e.toString());
+      final message = e is AppException
+          ? e.message
+          : ErrorHandler.handle(e).message;
+      state = AuthError(message);
     }
   }
 

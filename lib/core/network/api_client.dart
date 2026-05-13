@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -38,7 +39,7 @@ Dio apiClient(Ref ref) {
       LogInterceptor(
         requestBody: true,
         responseBody: true,
-        logPrint: (obj) => print('[Dio] $obj'),
+        logPrint: (obj) => debugPrint('[Dio] $obj'),
       ),
     );
     return true;

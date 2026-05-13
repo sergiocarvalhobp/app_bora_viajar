@@ -152,7 +152,7 @@ class _NotificationItem extends StatelessWidget {
       onTap: onTap,
       child: Container(
         color: isNew
-            ? AppColors.forest.withValues(alpha: 0.04)
+            ? AppColors.forest.withOpacity( 0.04)
             : Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
@@ -204,7 +204,7 @@ class _NotificationItem extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(_timeAgo(n.createdAt),
                       style: tt.labelSmall?.copyWith(
-                          color: AppColors.barkMuted.withValues(alpha: 0.7))),
+                          color: AppColors.barkMuted.withOpacity( 0.7))),
                 ],
               ),
             ),
@@ -221,8 +221,8 @@ class _NotificationItem extends StatelessWidget {
   };
 
   Color _iconBg(TipoNotificacao tipo) => switch (tipo) {
-    TipoNotificacao.participante => AppColors.forest.withValues(alpha: 0.12),
-    TipoNotificacao.mensagem     => AppColors.terra.withValues(alpha: 0.12),
+    TipoNotificacao.participante => AppColors.forest.withOpacity( 0.12),
+    TipoNotificacao.mensagem     => AppColors.terra.withOpacity( 0.12),
     TipoNotificacao.sistema      => AppColors.sand,
   };
 

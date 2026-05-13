@@ -166,7 +166,7 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
               style: TextStyle(
                 fontFamily: 'Nunito',
                 fontSize: 12,
-                color: Colors.white.withValues(alpha: 0.75),
+                color: Colors.white.withOpacity( 0.75),
               ),
             ),
           ],
@@ -361,7 +361,7 @@ class _MessageBubble extends ConsumerWidget {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.06),
+                          color: Colors.black.withOpacity( 0.06),
                           blurRadius: 4,
                           offset: const Offset(0, 2),
                         ),
@@ -562,7 +562,7 @@ class _MessageInput extends StatelessWidget {
         border: const Border(top: BorderSide(color: AppColors.sand)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.bark.withValues(alpha: 0.06),
+            color: AppColors.bark.withOpacity( 0.06),
             blurRadius: 12,
             offset: const Offset(0, -2),
           ),
@@ -662,7 +662,7 @@ class _EmptyChatState extends StatelessWidget {
             Container(
               width: 72, height: 72,
               decoration: BoxDecoration(
-                color: AppColors.forest.withValues(alpha: 0.1),
+                color: AppColors.forest.withOpacity( 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
