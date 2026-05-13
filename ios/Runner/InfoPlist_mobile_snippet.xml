@@ -1,0 +1,35 @@
+<!--
+  ios/Runner/Info.plist
+  
+  Adicionar dentro do <dict> raiz do Info.plist.
+  Permite que o Auth0 redirecione de volta ao app após o login no iOS.
+-->
+
+<key>CFBundleURLTypes</key>
+<array>
+    <dict>
+        <key>CFBundleTypeRole</key>
+        <string>Editor</string>
+        <key>CFBundleURLName</key>
+        <string>br.com.boraviajar</string>
+        <key>CFBundleURLSchemes</key>
+        <array>
+            <string>br.com.boraviajar</string>
+        </array>
+    </dict>
+</array>
+
+<!--
+  Também necessário para abrir o browser do sistema (ASWebAuthenticationSession):
+-->
+<key>NSAppTransportSecurity</key>
+<dict>
+    <key>NSAllowsArbitraryLoads</key>
+    <true/>
+</dict>
+
+<!--
+  Para desenvolvimento com backend local (http://localhost:3000):
+  O NSAllowsArbitraryLoads acima já cobre.
+  Em produção (HTTPS) isso pode ser removido.
+-->

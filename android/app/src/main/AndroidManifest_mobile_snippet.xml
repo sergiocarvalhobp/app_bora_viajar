@@ -1,0 +1,62 @@
+<!--
+  android/app/src/main/AndroidManifest.xml
+  
+  Adicionar dentro de <activity android:name=".MainActivity" ...>
+  logo após o intent-filter padrão do Flutter.
+  
+  Isso permite que o Auth0 redirecione de volta ao app após o login.
+  O scheme deve bater com auth0RedirectUri no app_constants.dart:
+  "br.com.boraviajar://callback"
+-->
+
+<intent-filter android:autoVerify="true">
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data
+        android:scheme="br.com.boraviajar"
+        android:host="callback" />
+</intent-filter>
+
+<!--
+  Também necessário para o flutter_appauth funcionar corretamente.
+  Adicionar nas permissões no topo do AndroidManifest:
+-->
+<!-- <uses-permission android:name="android.permission.INTERNET" /> -->
+
+<!--
+  Estrutura completa de referência do AndroidManifest.xml:
+
+  <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    
+    <application ...>
+      <activity
+          android:name=".MainActivity"
+          android:exported="true"
+          android:launchMode="singleTop"
+          android:theme="@style/LaunchTheme"
+          android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+          android:hardwareAccelerated="true"
+          android:windowSoftInputMode="adjustResize">
+
+        <!-- Flutter padrão -->
+        <intent-filter android:autoVerify="true">
+            <action android:name="android.intent.action.MAIN"/>
+            <category android:name="android.intent.category.LAUNCHER"/>
+        </intent-filter>
+
+        <!-- Auth0 deep link — ADICIONAR ISSO -->
+        <intent-filter android:autoVerify="true">
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data
+                android:scheme="br.com.boraviajar"
+                android:host="callback" />
+        </intent-filter>
+
+      </activity>
+    </application>
+  </manifest>
+-->
