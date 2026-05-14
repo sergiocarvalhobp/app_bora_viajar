@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/theme/app_colors.dart';
@@ -16,19 +17,12 @@ part 'notifications_screen.g.dart';
 Future<List<NotificationModel>> notifications(Ref ref) async {
   final dio = ref.watch(apiClientProvider);
   try {
-    final res = await dio.get(
-      trpcUrl('notificacoes.listar'),
-      queryParameters: {'input': '{"json":{}}'},
-    );
-    dynamic raw = res.data;
-    if (raw is List) raw = raw.first;
-    if (raw is Map<String, dynamic>) {
-      final data = raw['result']?['data']?['json'] ?? raw['result']?['data'];
-      if (data is List) {
-        return data
-            .map((e) => NotificationModel.fromJson(e as Map<String, dynamic>))
-            .toList();
-      }
+    final res = await dio.get('${AppConstants.restApiPrefix}/notifications');
+    final raw = res.data;
+    if (raw is List) {
+      return raw
+          .map((e) => NotificationModel.fromJson(e as Map<String, dynamic>))
+          .toList();
     }
     return [];
   } catch (e) {
@@ -51,8 +45,7 @@ class NotificationsNotifier extends _$NotificationsNotifier {
   Future<void> marcarLida(int id) async {
     final dio = ref.read(apiClientProvider);
     try {
-      await dio.post(trpcUrl('notificacoes.marcarLida'),
-          data: {'0': {'json': {'id': id}}});
+      await dio.post('${AppConstants.restApiPrefix}/notifications/$id/read');
       ref.invalidate(notificationsProvider);
     } catch (_) {}
   }
@@ -60,8 +53,7 @@ class NotificationsNotifier extends _$NotificationsNotifier {
   Future<void> marcarTodasLidas() async {
     final dio = ref.read(apiClientProvider);
     try {
-      await dio.post(trpcUrl('notificacoes.marcarTodasLidas'),
-          data: {'0': {'json': {}}});
+      await dio.post('${AppConstants.restApiPrefix}/notifications/read-all');
       ref.invalidate(notificationsProvider);
     } catch (_) {}
   }

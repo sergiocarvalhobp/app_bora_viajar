@@ -1,5 +1,4 @@
-/// Constantes globais — valores compatíveis com o backend web Bora Viajar
-/// (cookie `app_session_id`, Auth0, tRPC em `/api/trpc`).
+/// Caminhos e constantes do app.
 abstract final class AppConstants {
   // ── Sessão ────────────────────────────────────────────────────────────────
   /// Nome do cookie / chave no SecureStorage (JWT de sessão do backend).
@@ -15,8 +14,7 @@ abstract final class AppConstants {
   /// Redirect nativo (flutter_appauth). Registrar no Auth0 em Allowed Callback URLs.
   static const auth0RedirectUri = 'br.com.boraviajar://callback';
 
-  /// `POST` relativo à base URL: troca `access_token` (Auth0) por `sessionToken` (JWT).
-  /// Ajuste com `--dart-define=SESSION_TOKEN_EXCHANGE_PATH=/seu/caminho` se usar BFF/gateway.
+  /// `POST` relativo à base URL **Node**: troca `access_token` (Auth0) por `sessionToken` (JWT).
   static const sessionTokenExchangePath = String.fromEnvironment(
     'SESSION_TOKEN_EXCHANGE_PATH',
     defaultValue: '/api/auth/token',
@@ -25,5 +23,6 @@ abstract final class AppConstants {
   // ── Backend ───────────────────────────────────────────────────────────────
   static const httpTimeoutSeconds = 30;
 
-  static const trpcPrefix = '/api/trpc';
+  /// Prefixo da API REST Java (Spring Boot).
+  static const restApiPrefix = '/api/v1';
 }

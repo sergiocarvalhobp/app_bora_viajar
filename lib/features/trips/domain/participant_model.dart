@@ -38,11 +38,13 @@ class ParticipantModel extends Equatable {
   bool get isConfirmado  => status == StatusParticipacao.confirmado;
   bool get isInteressado => status == StatusParticipacao.interessado;
 
+  static int _int(dynamic v) => (v is num) ? v.toInt() : int.parse('$v');
+
   factory ParticipantModel.fromJson(Map<String, dynamic> json) {
     return ParticipantModel(
-      id:       json['id'] as int,
-      viagemId: (json['viagemId'] ?? json['viagem_id']) as int,
-      userId:   (json['userId'] ?? json['user_id']) as int,
+      id:       _int(json['id']),
+      viagemId: _int(json['viagemId'] ?? json['viagem_id']),
+      userId:   _int(json['userId'] ?? json['user_id']),
       status:   StatusParticipacao.fromString(
                   (json['status'] as String?) ?? 'interessado'),
       user:     json['user'] != null

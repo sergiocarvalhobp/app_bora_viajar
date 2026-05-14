@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/app_constants.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/network/api_client.dart';
 import '../domain/participant_model.dart';
@@ -18,54 +19,72 @@ class TripsRepository {
   TripsRepository({required Dio dio}) : _dio = dio;
   final Dio _dio;
 
-  // ── Listagem ───────────────────────────────────────────────────────────────
+  static const _p = AppConstants.restApiPrefix;
 
   Future<List<TripModel>> listar(TripFilters filters) async {
     try {
-      final response = await _dio.get(
-        trpcUrl('viagens.listar'),
-        queryParameters: {'input': _encodeInput(filters.toQueryParams())},
-      );
-      final data = _extractTrpcData(response.data);
-      if (data is! List) return [];
-      return data
+      List<dynamic> rawList;
+      if (filters.isEmpty) {
+        final response = await _dio.get('$_p/trips');
+        rawList = response.data as List<dynamic>? ?? [];
+      } else {
+        final qp = <String, dynamic>{};
+        if (filters.query != null && filters.query!.isNotEmpty) {
+          qp['destino'] = filters.query;
+        }
+        if (filters.estado != null) qp['estado'] = filters.estado;
+        if (filters.dataInicio != null) {
+          qp['dataInicio'] = filters.dataInicio!.toIso8601String().split('T').first;
+        }
+        if (filters.dataFim != null) {
+          qp['dataFim'] = filters.dataFim!.toIso8601String().split('T').first;
+        }
+        final response = await _dio.get('$_p/trips/filter', queryParameters: qp);
+        rawList = response.data as List<dynamic>? ?? [];
+      }
+      var list = rawList
           .map((e) => TripModel.fromJson(e as Map<String, dynamic>))
           .toList();
+      if (filters.tipo != null) {
+        list = list.where((t) => t.tipo == filters.tipo).toList();
+      }
+      if (filters.apenasComVagas) {
+        list = list.where((t) => t.temVagasDisponiveis).toList();
+      }
+      return list;
     } catch (e) {
       throw ErrorHandler.handle(e);
     }
   }
 
-  /// Retorna as viagens do usuário autenticado
   Future<List<TripModel>> minhasViagens() async {
     try {
-      final response = await _dio.get(trpcUrl('viagens.minhasViagens'));
-      final data = _extractTrpcData(response.data);
-      if (data is! List) return [];
-      return data
-          .map((e) => TripModel.fromJson(e as Map<String, dynamic>))
-          .toList();
+      final response = await _dio.get('$_p/historico/me');
+      final data = response.data as Map<String, dynamic>?;
+      if (data == null) return [];
+      final criadas = data['criadas'] as List<dynamic>? ?? [];
+      final participando = data['participando'] as List<dynamic>? ?? [];
+      final seen = <int>{};
+      final out = <TripModel>[];
+      for (final e in [...criadas, ...participando]) {
+        final m = TripModel.fromJson(e as Map<String, dynamic>);
+        if (seen.add(m.id)) out.add(m);
+      }
+      return out;
     } catch (e) {
       throw ErrorHandler.handle(e);
     }
   }
-
-  // ── Detalhes ───────────────────────────────────────────────────────────────
 
   Future<TripModel> buscarPorId(int id) async {
     try {
-      final response = await _dio.get(
-        trpcUrl('viagens.buscarPorId'),
-        queryParameters: {'input': _encodeInput({'id': id})},
-      );
-      final data = _extractTrpcData(response.data);
-      return TripModel.fromJson(data as Map<String, dynamic>);
+      final response = await _dio.get('$_p/trips/$id');
+      return TripModel.fromJson(response.data as Map<String, dynamic>);
     } catch (e) {
       throw ErrorHandler.handle(e);
     }
   }
 
-  /// Cria uma nova viagem
   Future<TripModel> criar({
     required String destino,
     String? estado,
@@ -78,39 +97,30 @@ class TripsRepository {
     int? maxVagas,
   }) async {
     try {
-      final data = {
+      final body = <String, dynamic>{
         'destino': destino,
+        'descricao': descricao,
+        'tipo': tipo,
+        'dataInicio': dataInicio.toIso8601String().split('T').first,
+        'dataFim': dataFim.toIso8601String().split('T').first,
         if (estado != null) 'estado': estado,
         if (cidade != null) 'cidade': cidade,
         if (atrativo != null) 'atrativo': atrativo,
-        'descricao': descricao,
-        'tipo': tipo,
-        'dataInicio': dataInicio.toIso8601String(),
-        'dataFim': dataFim.toIso8601String(),
         if (maxVagas != null) 'maxVagas': maxVagas,
       };
-      final response = await _dio.post(
-        trpcUrl('viagens.criar'),
-        data: _encodeInput(data),
-      );
-      final responseData = _extractTrpcData(response.data);
-      return TripModel.fromJson(responseData as Map<String, dynamic>);
+      final response = await _dio.post('$_p/trips', data: body);
+      return TripModel.fromJson(response.data as Map<String, dynamic>);
     } catch (e) {
       throw ErrorHandler.handle(e);
     }
   }
 
-  // ── Participantes ──────────────────────────────────────────────────────────
-
   Future<List<ParticipantModel>> listarParticipantes(int viagemId) async {
     try {
-      final response = await _dio.get(
-        trpcUrl('viagens.listarParticipantes'),
-        queryParameters: {'input': _encodeInput({'viagemId': viagemId})},
-      );
-      final data = _extractTrpcData(response.data);
-      if (data is! List) return [];
-      return data
+      final response = await _dio.get('$_p/trips/$viagemId/details');
+      final data = response.data as Map<String, dynamic>?;
+      final parts = data?['participants'] as List<dynamic>? ?? [];
+      return parts
           .map((e) => ParticipantModel.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (e) {
@@ -120,10 +130,7 @@ class TripsRepository {
 
   Future<void> participar(int viagemId) async {
     try {
-      await _dio.post(
-        trpcUrl('viagens.participar'),
-        data: {'0': {'json': {'viagemId': viagemId}}},
-      );
+      await _dio.post('$_p/participantes/join', data: {'viagemId': viagemId});
     } catch (e) {
       throw ErrorHandler.handle(e);
     }
@@ -131,65 +138,21 @@ class TripsRepository {
 
   Future<void> cancelarParticipacao(int viagemId) async {
     try {
-      await _dio.post(
-        trpcUrl('viagens.cancelarParticipacao'),
-        data: {'0': {'json': {'viagemId': viagemId}}},
-      );
+      await _dio.post('$_p/participantes/leave', data: {'viagemId': viagemId});
     } catch (e) {
       throw ErrorHandler.handle(e);
     }
   }
 
-  /// Líder confirma ou recusa um participante.
   Future<void> atualizarStatusParticipante(
-      int viagemId, int participanteId, String status) async {
+      int _, int participanteId, String status) async {
     try {
-      await _dio.post(
-        trpcUrl('viagens.atualizarParticipante'),
-        data: {
-          '0': {
-            'json': {
-              'viagemId': viagemId,
-              'participanteId': participanteId,
-              'status': status,
-            }
-          }
-        },
+      await _dio.patch(
+        '$_p/participantes/$participanteId/status',
+        data: {'status': status},
       );
     } catch (e) {
       throw ErrorHandler.handle(e);
     }
-  }
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
-
-  static String _encodeInput(Map<String, dynamic> params) {
-    final buffer = StringBuffer('{"json":{');
-    var first = true;
-    for (final entry in params.entries) {
-      if (!first) buffer.write(',');
-      final v = entry.value;
-      if (v is String) {
-        buffer.write('"${entry.key}":"$v"');
-      } else {
-        buffer.write('"${entry.key}":$v');
-      }
-      first = false;
-    }
-    buffer.write('}}');
-    return buffer.toString();
-  }
-
-  static dynamic _extractTrpcData(dynamic raw) {
-    if (raw is List) raw = raw.first;
-    if (raw is Map<String, dynamic>) {
-      final result = raw['result'];
-      if (result is Map<String, dynamic>) {
-        final data = result['data'];
-        if (data is Map<String, dynamic>) return data['json'] ?? data;
-        return data;
-      }
-    }
-    return raw;
   }
 }

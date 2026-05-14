@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/theme/app_colors.dart';
@@ -100,20 +101,18 @@ class EditProfileNotifier extends _$EditProfileNotifier {
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
       final dio = ref.read(apiClientProvider);
-      await dio.post(
-        trpcUrl('users.atualizarPerfil'),
+      await dio.patch(
+        '${AppConstants.restApiPrefix}/profile/me',
         data: {
-          '0': {
-            'json': {
-              'name':      state.name.trim(),
-              'bio':       state.bio.trim().isEmpty ? null : state.bio.trim(),
-              'instagram': state.instagram.trim().isEmpty
-                  ? null : state.instagram.trim(),
-              'estado':    state.estado,
-              'cidade':    state.cidade.trim().isEmpty
-                  ? null : state.cidade.trim(),
-            }
-          }
+          'name': state.name.trim(),
+          'bio': state.bio.trim().isEmpty ? null : state.bio.trim(),
+          'instagram': state.instagram.trim().isEmpty
+              ? null
+              : state.instagram.trim(),
+          'estadoResidencia': state.estado,
+          'cidadeResidencia': state.cidade.trim().isEmpty
+              ? null
+              : state.cidade.trim(),
         },
       );
       // TODO: upload de avatar (multipart) quando o backend tiver o endpoint

@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/theme/app_colors.dart';
@@ -13,46 +16,24 @@ import '../../trips/widgets/trip_card.dart';
 
 part 'public_profile_screen.g.dart';
 
-// ── Providers ─────────────────────────────────────────────────────────────────
-
+/// Um único `GET /api/v1/profile/public/{userId}` devolve perfil + listas de viagens.
 @riverpod
-Future<UserModel> publicProfile(Ref ref, int userId) async {
+Future<({List<TripModel> trips, UserModel user})> publicProfilePage(
+    Ref ref, int userId) async {
   final dio = ref.watch(apiClientProvider);
   try {
-    final res = await dio.get(
-      trpcUrl('users.buscarPorId'),
-      queryParameters: {'input': '{"json":{"userId":$userId}}'},
-    );
-    dynamic raw = res.data;
-    if (raw is List) raw = raw.first;
-    final data = raw['result']?['data']?['json'] ?? raw['result']?['data'];
-    return UserModel.fromJson(data as Map<String, dynamic>);
-  } catch (e) {
-    throw ErrorHandler.handle(e);
-  }
-}
-
-@riverpod
-Future<List<TripModel>> userPublicTrips(Ref ref, int userId) async {
-  final dio = ref.watch(apiClientProvider);
-  try {
-    final res = await dio.get(
-      trpcUrl('viagens.listarPorUsuario'),
-      queryParameters: {'input': '{"json":{"userId":$userId}}'},
-    );
-    dynamic raw = res.data;
-    if (raw is List) raw = raw.first;
-    final data = raw['result']?['data']?['json'] ?? raw['result']?['data'];
-    if (data is! List) return [];
-    return data
+    final res = await dio.get('${AppConstants.restApiPrefix}/profile/public/$userId');
+    final map = res.data as Map<String, dynamic>;
+    final user = UserModel.fromJson(map);
+    final rawTrips = map['viagens'] as List<dynamic>? ?? [];
+    final trips = rawTrips
         .map((e) => TripModel.fromJson(e as Map<String, dynamic>))
         .toList();
+    return (trips: trips, user: user);
   } catch (e) {
     throw ErrorHandler.handle(e);
   }
 }
-
-// ── Tela ───────────────────────────────────────────────────────────────────────
 
 class PublicProfileScreen extends ConsumerWidget {
   const PublicProfileScreen({super.key, required this.userId});
@@ -60,10 +41,9 @@ class PublicProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profileAsync = ref.watch(publicProfileProvider(userId));
-    final tripsAsync   = ref.watch(userPublicTripsProvider(userId));
+    final async = ref.watch(publicProfilePageProvider(userId));
 
-    return profileAsync.when(
+    return async.when(
       loading: () => const Scaffold(
         backgroundColor: AppColors.cream,
         body: Center(child: CircularProgressIndicator(color: AppColors.forest)),
@@ -72,16 +52,15 @@ class PublicProfileScreen extends ConsumerWidget {
         appBar: AppBar(title: const Text('Perfil')),
         body: Center(child: Text('Erro: $e')),
       ),
-      data: (user) => _ProfileBody(
-          user: user, tripsAsync: tripsAsync),
+      data: (bundle) => _ProfileBody(user: bundle.user, trips: bundle.trips),
     );
   }
 }
 
 class _ProfileBody extends StatelessWidget {
-  const _ProfileBody({required this.user, required this.tripsAsync});
+  const _ProfileBody({required this.user, required this.trips});
   final UserModel user;
-  final AsyncValue<List<TripModel>> tripsAsync;
+  final List<TripModel> trips;
 
   @override
   Widget build(BuildContext context) {
@@ -91,7 +70,6 @@ class _ProfileBody extends StatelessWidget {
       backgroundColor: AppColors.cream,
       body: CustomScrollView(
         slivers: [
-          // ── Header ─────────────────────────────────────────────────────
           SliverAppBar(
             expandedHeight: 200,
             pinned: true,
@@ -111,7 +89,6 @@ class _ProfileBody extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Avatar centralizado
                   Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -138,15 +115,12 @@ class _ProfileBody extends StatelessWidget {
               ),
             ),
           ),
-
-          // ── Conteúdo ───────────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Nome + badge
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -158,7 +132,7 @@ class _ProfileBody extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppColors.forest.withOpacity( 0.1),
+                          color: AppColors.forest.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(100),
                         ),
                         child: const Text('Viajante',
@@ -168,8 +142,6 @@ class _ProfileBody extends StatelessWidget {
                       ),
                     ],
                   ),
-
-                  // Localização
                   if (user.estado != null || user.cidade != null) ...[
                     const SizedBox(height: 6),
                     Row(children: [
@@ -185,16 +157,12 @@ class _ProfileBody extends StatelessWidget {
                       ),
                     ]),
                   ],
-
-                  // Bio
                   if (user.bio != null && user.bio!.isNotEmpty) ...[
                     const SizedBox(height: 14),
                     Text(user.bio!,
                         style: tt.bodyMedium?.copyWith(
                             color: AppColors.barkMuted, height: 1.6)),
                   ],
-
-                  // Instagram
                   if (user.instagram != null && user.instagram!.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Row(children: [
@@ -207,12 +175,9 @@ class _ProfileBody extends StatelessWidget {
                               fontWeight: FontWeight.w600)),
                     ]),
                   ],
-
                   const SizedBox(height: 28),
                   const Divider(color: AppColors.sand, height: 1),
                   const SizedBox(height: 20),
-
-                  // Viagens públicas
                   Text('Viagens de ${user.name.split(' ').first}',
                       style: tt.headlineSmall),
                   const SizedBox(height: 16),
@@ -220,52 +185,32 @@ class _ProfileBody extends StatelessWidget {
               ),
             ),
           ),
-
-          // Lista de viagens
-          tripsAsync.when(
-            loading: () => const SliverToBoxAdapter(
-              child: Center(child: Padding(
-                padding: EdgeInsets.all(32),
-                child: CircularProgressIndicator(color: AppColors.forest),
-              )),
-            ),
-            error: (_, __) => const SliverToBoxAdapter(
-              child: Center(child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Text('Não foi possível carregar as viagens.',
-                    style: TextStyle(fontFamily: 'Nunito',
-                        color: AppColors.barkMuted)),
-              )),
-            ),
-            data: (trips) {
-              if (trips.isEmpty) {
-                return SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-                    child: Text(
-                      '${user.name.split(' ').first} ainda não publicou nenhuma viagem.',
-                      style: tt.bodyMedium?.copyWith(color: AppColors.barkMuted),
-                    ),
-                  ),
-                );
-              }
-              return SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, i) => Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: TripCard(
-                        trip: trips[i],
-                        onTap: () => context.push('/trips/${trips[i].id}'),
-                      ),
-                    ),
-                    childCount: trips.length,
-                  ),
+          if (trips.isEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                child: Text(
+                  '${user.name.split(' ').first} ainda não publicou nenhuma viagem.',
+                  style: tt.bodyMedium?.copyWith(color: AppColors.barkMuted),
                 ),
-              );
-            },
-          ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, i) => Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: TripCard(
+                      trip: trips[i],
+                      onTap: () => context.push('/trips/${trips[i].id}'),
+                    ),
+                  ),
+                  childCount: trips.length,
+                ),
+              ),
+            ),
         ],
       ),
     );

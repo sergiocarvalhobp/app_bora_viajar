@@ -7,7 +7,7 @@ import 'app_exception.dart';
 /// Uso nos repositories:
 /// ```dart
 /// try {
-///   final res = await _dio.get(trpcUrl('auth.me'));
+///   final res = await _dio.get('/api/v1/auth/me');
 ///   return UserModel.fromJson(res.data);
 /// } catch (e) {
 ///   throw ErrorHandler.handle(e);

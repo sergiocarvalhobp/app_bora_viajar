@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+
 import '../../auth/domain/user_model.dart';
 
 class MessageModel extends Equatable {
@@ -18,22 +19,36 @@ class MessageModel extends Equatable {
   final DateTime timestamp;
   final UserModel? sender;
 
-  /// Verifica se a mensagem foi enviada pelo usuário com [myId].
   bool isMinha(int myId) => senderId == myId;
 
-  /// Nome curto do remetente para exibição no grupo.
   String get senderName => sender?.name.split(' ').first ?? 'Viajante';
 
+  static int _int(dynamic v) => (v is num) ? v.toInt() : int.parse('$v');
+
   factory MessageModel.fromJson(Map<String, dynamic> json) {
+    final sid = _int(json['senderId'] ?? json['sender_id']);
+    UserModel? sender;
+    if (json['sender'] != null) {
+      sender = UserModel.fromJson(json['sender'] as Map<String, dynamic>);
+    } else {
+      final name = json['senderName'] as String?;
+      final avatar = json['senderAvatar'] as String?;
+      if (name != null || avatar != null) {
+        sender = UserModel(
+          id: sid,
+          openId: '',
+          name: name ?? 'Viajante',
+          foto: avatar,
+        );
+      }
+    }
     return MessageModel(
-      id:        json['id'] as int,
-      viagemId:  (json['viagemId']  ?? json['viagem_id'])  as int,
-      senderId:  (json['senderId']  ?? json['sender_id'])  as int,
-      conteudo:  json['conteudo']   as String,
+      id: _int(json['id']),
+      viagemId: _int(json['viagemId'] ?? json['viagem_id']),
+      senderId: sid,
+      conteudo: json['conteudo'] as String,
       timestamp: DateTime.parse(json['timestamp'] as String).toLocal(),
-      sender:    json['sender'] != null
-                   ? UserModel.fromJson(json['sender'] as Map<String, dynamic>)
-                   : null,
+      sender: sender,
     );
   }
 
@@ -41,7 +56,6 @@ class MessageModel extends Equatable {
   List<Object?> get props => [id, viagemId, senderId, conteudo, timestamp];
 }
 
-/// Mensagem otimista — criada localmente antes do ACK do servidor.
 class OptimisticMessage extends MessageModel {
   const OptimisticMessage({
     required super.id,
@@ -51,7 +65,7 @@ class OptimisticMessage extends MessageModel {
     required super.timestamp,
     super.sender,
     this.pending = true,
-    this.failed  = false,
+    this.failed = false,
   });
 
   final bool pending;
@@ -59,14 +73,14 @@ class OptimisticMessage extends MessageModel {
 
   OptimisticMessage copyWithState({bool? pending, bool? failed}) {
     return OptimisticMessage(
-      id:        id,
-      viagemId:  viagemId,
-      senderId:  senderId,
-      conteudo:  conteudo,
+      id: id,
+      viagemId: viagemId,
+      senderId: senderId,
+      conteudo: conteudo,
       timestamp: timestamp,
-      sender:    sender,
-      pending:   pending ?? this.pending,
-      failed:    failed  ?? this.failed,
+      sender: sender,
+      pending: pending ?? this.pending,
+      failed: failed ?? this.failed,
     );
   }
 }

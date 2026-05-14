@@ -89,10 +89,12 @@ class TripModel extends Equatable {
 
   // ── JSON ───────────────────────────────────────────────────────────────────
 
+  static int _int(dynamic v) => (v is num) ? v.toInt() : int.parse('$v');
+
   factory TripModel.fromJson(Map<String, dynamic> json) {
     return TripModel(
-      id:                 json['id'] as int,
-      liderId:            (json['liderId'] ?? json['lider_id']) as int,
+      id:                 _int(json['id']),
+      liderId:            _int(json['liderId'] ?? json['lider_id']),
       destino:            json['destino'] as String,
       dataInicio:         DateTime.parse(json['dataInicio'] ?? json['data_inicio'] as String),
       dataFim:            DateTime.parse(json['dataFim'] ?? json['data_fim'] as String),
@@ -101,11 +103,17 @@ class TripModel extends Equatable {
       estado:             json['estado'] as String?,
       cidade:             json['cidade'] as String?,
       atrativo:           json['atrativo'] as String?,
-      maxVagas:           json['maxVagas'] as int? ?? json['max_vagas'] as int?,
+      maxVagas:           json['maxVagas'] != null
+                            ? _int(json['maxVagas'])
+                            : (json['max_vagas'] != null ? _int(json['max_vagas']) : null),
       lider:              json['lider'] != null
                             ? UserModel.fromJson(json['lider'] as Map<String, dynamic>)
                             : null,
-      participantesCount: (json['participantesCount'] ?? json['participantes_count'] ?? 0) as int,
+      participantesCount: json['participantesCount'] != null
+          ? _int(json['participantesCount'])
+          : (json['participantes_count'] != null
+              ? _int(json['participantes_count'])
+              : (json['participantCount'] != null ? _int(json['participantCount']) : 0)),
       myStatus:           json['myStatus'] as String?,
       createdAt:          json['createdAt'] != null
                             ? DateTime.tryParse(json['createdAt'] as String)

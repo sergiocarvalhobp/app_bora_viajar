@@ -36,17 +36,21 @@ class NotificationModel extends Equatable {
   final DateTime createdAt;
   final int? viagemId;
 
+  static int _int(dynamic v) => (v is num) ? v.toInt() : int.parse('$v');
+
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
     return NotificationModel(
-      id:        json['id'] as int,
-      userId:    (json['userId'] ?? json['user_id']) as int,
+      id:        _int(json['id']),
+      userId:    _int(json['userId'] ?? json['user_id']),
       tipo:      TipoNotificacao.fromString(
                    (json['tipo'] as String?) ?? 'sistema'),
       titulo:    json['titulo'] as String,
       mensagem:  json['mensagem'] as String,
-      lida:      ((json['lida'] ?? 0) as int) == 1,
+      lida:      ((json['lida'] is bool) ? (json['lida'] as bool) : _int(json['lida'] ?? 0) == 1),
       createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
-      viagemId:  json['viagemId'] as int?,
+      viagemId:  json['viagemId'] != null
+          ? _int(json['viagemId'])
+          : (json['viagem_id'] != null ? _int(json['viagem_id']) : null),
     );
   }
 
