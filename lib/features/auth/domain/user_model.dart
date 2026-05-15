@@ -36,7 +36,12 @@ class UserModel extends Equatable {
 
   bool get isAdmin => role == 'admin';
 
-  static int _id(dynamic v) => (v is num) ? v.toInt() : int.parse('$v');
+  static int _id(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse('$v') ?? 0;
+  }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     final foto = json['foto'] as String? ?? json['avatarUrl'] as String?;
@@ -44,10 +49,11 @@ class UserModel extends Equatable {
         json['cidade'] as String? ?? json['cidadeResidencia'] as String?;
     final estado =
         json['estado'] as String? ?? json['estadoResidencia'] as String?;
+    final openIdRaw = json['openId'] ?? json['open_id'];
     return UserModel(
       id: _id(json['id']),
-      openId: (json['openId'] ?? json['open_id'] ?? '') as String,
-      name: (json['name'] as String?) ?? 'Viajante',
+      openId: openIdRaw?.toString() ?? '',
+      name: (json['name']?.toString()) ?? 'Viajante',
       email: json['email'] as String?,
       foto: foto,
       bio: json['bio'] as String?,

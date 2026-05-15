@@ -5,13 +5,12 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../app_constants.dart';
 import '../app_env.dart';
-import 'auth_interceptor.dart';
 
-part 'api_client.g.dart';
+part 'auth_exchange_client.g.dart';
 
-/// Cliente HTTP único — API REST Java (`/api/v1/...`).
+/// HTTP só para troca Auth0 → JWT — sem interceptor de sessão (evita 403 na borda).
 @riverpod
-Dio apiClient(Ref ref) {
+Dio authExchangeClient(Ref ref) {
   final dio = Dio(
     BaseOptions(
       baseUrl: AppEnv.effectiveApiBaseUrl,
@@ -25,16 +24,14 @@ Dio apiClient(Ref ref) {
       validateStatus: (status) => status != null && status < 500,
     ),
   );
-  dio.interceptors.add(ref.watch(authInterceptorProvider));
-  assert(() {
+  if (kDebugMode) {
     dio.interceptors.add(
       LogInterceptor(
-        requestBody: true,
+        requestBody: false,
         responseBody: true,
-        logPrint: (obj) => debugPrint('[Dio:api] $obj'),
+        logPrint: (obj) => debugPrint('[Auth:exchange] $obj'),
       ),
     );
-    return true;
-  }());
+  }
   return dio;
 }

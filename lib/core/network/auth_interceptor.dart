@@ -20,11 +20,23 @@ class AuthInterceptor extends Interceptor {
   AuthInterceptor(this._sessionStorage);
   final SessionStorage _sessionStorage;
 
+  /// Rotas de login que não devem levar JWT/cookie antigo (evita 403 no servidor).
+  static bool _shouldSkipAuth(RequestOptions options) {
+    if (options.extra['skipAuth'] == true) return true;
+    final path = options.uri.path;
+    return path.endsWith('/auth/token');
+  }
+
   @override
   Future<void> onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
+    if (_shouldSkipAuth(options)) {
+      handler.next(options);
+      return;
+    }
+
     final token = await _sessionStorage.readToken();
 
     if (token != null && token.isNotEmpty) {
@@ -45,7 +57,8 @@ class AuthInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     // Sessão expirada ou inválida — apaga o token local para forçar re-login
-    if (err.response?.statusCode == 401) {
+    final code = err.response?.statusCode;
+    if (code == 401 || code == 403) {
       _sessionStorage.deleteToken();
       // Não bloqueia a propagação do erro — a UI decide o que mostrar
     }

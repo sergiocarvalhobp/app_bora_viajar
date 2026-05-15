@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../auth_debug.dart';
 import '../presentation/auth_provider.dart';
 
 class LoginScreen extends ConsumerWidget {
@@ -13,10 +13,13 @@ class LoginScreen extends ConsumerWidget {
     final authState = ref.watch(authNotifierProvider);
     final isLoading = authState is AuthLoading;
 
-    // Navega para home quando autenticado
-    ref.listen(authNotifierProvider, (_, next) {
-      if (next is AuthAuthenticated) {
-        context.go('/');
+    ref.listen(authNotifierProvider, (prev, next) {
+      AuthDebug.log(
+        'UI',
+        '${prev?.runtimeType ?? 'null'} → ${next.runtimeType}',
+      );
+      if (next is AuthError) {
+        AuthDebug.log('UI', 'mostrar erro: ${next.message}');
       }
     });
 
@@ -37,8 +40,10 @@ class LoginScreen extends ConsumerWidget {
               child: _LoginCard(
                 isLoading: isLoading,
                 error: authState is AuthError ? authState.message : null,
-                onGoogleLogin: () =>
-                    ref.read(authNotifierProvider.notifier).loginWithGoogle(),
+                onGoogleLogin: () {
+                  AuthDebug.log('UI', 'tap Continuar com Google');
+                  ref.read(authNotifierProvider.notifier).loginWithGoogle();
+                },
               ),
             ),
           ],
@@ -227,7 +232,7 @@ class _LoginCard extends StatelessWidget {
           // Mensagem de erro
           if (error != null) ...[
             const SizedBox(height: 16),
-            _ErrorBanner(message: _friendlyError(error!)),
+            _ErrorBanner(message: _loginErrorMessage(error!)),
           ],
 
           const Spacer(),
@@ -251,17 +256,22 @@ class _LoginCard extends StatelessWidget {
     );
   }
 
-  String _friendlyError(String raw) {
-    if (raw.contains('cancelado') || raw.contains('cancel')) {
+  String _loginErrorMessage(String raw) {
+    final lower = raw.toLowerCase();
+    if (lower.contains('cancelado') || lower.contains('cancel')) {
       return 'Login cancelado. Tente novamente quando quiser.';
     }
-    if (raw.contains('rede') || raw.contains('network') || raw.contains('connection')) {
+    if (lower.contains('sem conexão') ||
+        lower.contains('tempo limite') ||
+        lower.contains('internet')) {
       return 'Sem conexão. Verifique sua internet e tente novamente.';
     }
-    if (raw.contains('sessão') || raw.contains('auth')) {
-      return 'Erro de autenticação. Tente novamente.';
+    // AuthRepository já devolve texto amigável; evita jargão técnico residual.
+    if (lower.contains('redeploy') ||
+        (lower.contains('403') && lower.contains('api java'))) {
+      return 'Não foi possível concluir o login. Tente de novo em instantes.';
     }
-    return 'Algo deu errado. Tente novamente.';
+    return raw;
   }
 }
 

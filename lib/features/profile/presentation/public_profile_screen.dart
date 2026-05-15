@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +9,7 @@ import '../../../core/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/avatar_image_provider.dart';
 import '../../auth/domain/user_model.dart';
 import '../../trips/domain/trip_model.dart';
 import '../../trips/widgets/trip_card.dart';
@@ -97,9 +97,7 @@ class _ProfileBody extends StatelessWidget {
                         CircleAvatar(
                           radius: 44,
                           backgroundColor: Colors.white24,
-                          backgroundImage: user.foto != null
-                              ? CachedNetworkImageProvider(user.foto!)
-                              : null,
+                          backgroundImage: avatarImageProvider(user.foto),
                           child: user.foto == null
                               ? Text(user.initials,
                                   style: const TextStyle(

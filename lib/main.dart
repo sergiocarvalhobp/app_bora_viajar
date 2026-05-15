@@ -1,12 +1,26 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'core/firebase_bootstrap.dart';
+import 'features/auth/auth_debug.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  if (kDebugMode) {
+    FlutterError.onError = (details) {
+      AuthDebug.log('CRASH', details.exceptionAsString());
+      AuthDebug.log('CRASH', details.stack?.toString() ?? '');
+      FlutterError.presentError(details);
+    };
+    PlatformDispatcher.instance.onError = (error, stack) {
+      AuthDebug.log('CRASH async', '$error\n$stack');
+      return true;
+    };
+  }
 
   await bootstrapFirebase();
 

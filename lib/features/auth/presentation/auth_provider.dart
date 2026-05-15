@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:riverpod/riverpod.dart';
 
 import '../../../core/errors/app_exception.dart';
 import '../../../core/errors/error_handler.dart';
+import '../auth_debug.dart';
 import '../data/auth_repository.dart';
 import '../domain/user_model.dart';
 
@@ -40,37 +42,58 @@ final class AuthError extends AuthState {
 
 @riverpod
 class AuthNotifier extends _$AuthNotifier {
+  /// Invalida resultado tardio de [_restoreSession] após o utilizador tocar em login.
+  int _restoreGeneration = 0;
+
   @override
   AuthState build() {
-    // Inicia verificação de sessão assim que o provider é criado
+    AuthDebug.log('build', 'início → AuthLoading');
     _restoreSession();
     return const AuthLoading();
   }
 
   AuthRepository get _repo => ref.read(authRepositoryProvider);
 
+  void _logState(String from, AuthState next) {
+    AuthDebug.log('state', '$from → ${next.runtimeType}');
+  }
+
   /// Tenta restaurar sessão salva no SecureStorage.
   /// Chamado automaticamente no build().
   Future<void> _restoreSession() async {
+    final gen = ++_restoreGeneration;
+    AuthDebug.log('restore', 'a verificar SecureStorage…');
     final user = await _repo.tryRestoreSession();
+    if (gen != _restoreGeneration) {
+      AuthDebug.log('restore', 'ignorado (login em curso)');
+      return;
+    }
     if (user != null) {
-      state = AuthAuthenticated(user);
+      AuthDebug.log('restore', 'sessão OK userId=${user.id}');
+      _logState('restore', state = AuthAuthenticated(user));
     } else {
-      state = const AuthUnauthenticated();
+      AuthDebug.log('restore', 'sem sessão');
+      _logState('restore', state = const AuthUnauthenticated());
     }
   }
 
   /// Inicia o fluxo de login com Google via Auth0.
   Future<void> loginWithGoogle() async {
-    state = const AuthLoading();
+    _restoreGeneration++;
+    AuthDebug.log('login', 'botão Google → AuthLoading');
+    _logState('login', state = const AuthLoading());
     try {
       final user = await _repo.loginWithGoogle();
-      state = AuthAuthenticated(user);
-    } catch (e) {
+      AuthDebug.log('login', 'sucesso userId=${user.id} name=${user.name}');
+      _logState('login', state = AuthAuthenticated(user));
+    } catch (e, st) {
       final message = e is AppException
           ? e.message
           : ErrorHandler.handle(e).message;
-      state = AuthError(message);
+      AuthDebug.log('login', 'falhou: $message');
+      AuthDebug.log('login', 'tipo=${e.runtimeType}');
+      if (kDebugMode) AuthDebug.log('login', 'stack: $st');
+      _logState('login', state = AuthError(message));
     }
   }
 

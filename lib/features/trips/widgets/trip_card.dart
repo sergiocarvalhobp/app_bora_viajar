@@ -1,7 +1,8 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/avatar_image_provider.dart';
+import '../../../core/ui/destination_image_resolver.dart';
 import '../domain/trip_model.dart';
 
 /// Card de viagem — usado na SearchTripsScreen e MyHistoryScreen.
@@ -194,34 +195,23 @@ class _DestinationImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final assetPath = resolveDestinationAsset(destino: destino);
+
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Gradiente de fundo (sempre visível como fallback)
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: _gradient,
-            ),
-          ),
-        ),
+        if (assetPath != null)
+          Image.asset(
+            assetPath,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _fallbackBackground(),
+          )
+        else
+          _fallbackBackground(),
 
-        // Nome do destino centralizado no hero
-        Center(
-          child: Text(
-            destino,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontFamily: 'DMSerifDisplay',
-              fontSize: 22,
-              color: Colors.white,
-              shadows: [
-                Shadow(blurRadius: 8, color: Colors.black26),
-              ],
-            ),
-          ),
+        // Overlay para legibilidade
+        Container(
+          color: Colors.black.withOpacity(assetPath != null ? 0.20 : 0.10),
         ),
 
         // Overlay escuro suave na base para legibilidade
@@ -241,7 +231,38 @@ class _DestinationImage extends StatelessWidget {
             ),
           ),
         ),
+
+        // Nome do destino
+        Positioned(
+          left: 14,
+          right: 14,
+          bottom: 10,
+          child: Text(
+            destino,
+            textAlign: TextAlign.left,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontFamily: 'DMSerifDisplay',
+              fontSize: 20,
+              color: Colors.white,
+              shadows: [Shadow(blurRadius: 8, color: Colors.black54)],
+            ),
+          ),
+        ),
       ],
+    );
+  }
+
+  Widget _fallbackBackground() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: _gradient,
+        ),
+      ),
     );
   }
 }
@@ -334,8 +355,7 @@ class _LiderAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: 14,
       backgroundColor: AppColors.sand,
-      backgroundImage:
-          foto != null ? CachedNetworkImageProvider(foto) : null,
+      backgroundImage: avatarImageProvider(foto),
       child: foto == null
           ? Text(
               lider.initials as String,

@@ -1,22 +1,9 @@
 <!--
   android/app/src/main/AndroidManifest.xml
   
-  Adicionar dentro de <activity android:name=".MainActivity" ...>
-  logo após o intent-filter padrão do Flutter.
-  
-  Isso permite que o Auth0 redirecione de volta ao app após o login.
-  O scheme deve bater com auth0RedirectUri no app_constants.dart:
-  "br.com.boraviajar://callback"
--->
-
-<intent-filter android:autoVerify="true">
-    <action android:name="android.intent.action.VIEW" />
-    <category android:name="android.intent.category.DEFAULT" />
-    <category android:name="android.intent.category.BROWSABLE" />
-    <data
-        android:scheme="br.com.boraviajar"
-        android:host="callback" />
-</intent-filter>
+  NÃO adicione o deep link na MainActivity — isso reinicia o Flutter.
+  O AndroidManifest.xml do projeto já declara RedirectUriReceiverActivity
+  com br.com.boraviajar://callback (igual a AppConstants.auth0RedirectUri).
 
 <!--
   Também necessário para o flutter_appauth funcionar corretamente.

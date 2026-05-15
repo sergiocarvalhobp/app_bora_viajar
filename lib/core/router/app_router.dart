@@ -28,22 +28,28 @@ abstract final class Routes {
   static const notifications = '/notifications';
 }
 
-@riverpod
+@Riverpod(keepAlive: true)
 GoRouter appRouter(Ref ref) {
-  final authState = ref.watch(authNotifierProvider);
+  // Não use ref.watch(auth) aqui — recriaria o GoRouter a cada mudança de auth
+  // e resetaria a navegação para initialLocation (bug: login → tela de viagens).
+  final authRefresh = _AuthStateListenable(ref);
 
   return GoRouter(
-    initialLocation: Routes.home,
+    initialLocation: Routes.login,
     debugLogDiagnostics: false,
-    refreshListenable: _AuthStateListenable(ref),
+    refreshListenable: authRefresh,
 
     redirect: (context, state) {
-      final isLoading      = authState is AuthLoading;
-      final isAuth         = authState is AuthAuthenticated;
-      final goingToLogin   = state.matchedLocation == Routes.login;
-      if (isLoading)               return null;
-      if (!isAuth && !goingToLogin) return Routes.login;
-      if (isAuth  && goingToLogin)  return Routes.home;
+      final authState = ref.read(authNotifierProvider);
+      final isLoading = authState is AuthLoading;
+      final isAuth = authState is AuthAuthenticated;
+      final onLogin = state.matchedLocation == Routes.login;
+
+      // Enquanto verifica sessão ou faz login: só fica na tela de login.
+      if (isLoading) return onLogin ? null : Routes.login;
+
+      if (!isAuth && !onLogin) return Routes.login;
+      if (isAuth && onLogin) return Routes.home;
       return null;
     },
 
@@ -110,15 +116,20 @@ GoRouter appRouter(Ref ref) {
           // Tab 3 — Perfil
           StatefulShellBranch(routes: [
             GoRoute(
-              path: Routes.editProfile,
-              name: 'editProfile',
-              builder: (_, __) => const EditProfileScreen(),
+              path: '/profile',
+              redirect: (_, __) => Routes.editProfile,
               routes: [
                 GoRoute(
-                  path: '/profile/:userId',
+                  path: 'edit',
+                  name: 'editProfile',
+                  builder: (_, __) => const EditProfileScreen(),
+                ),
+                GoRoute(
+                  path: ':userId',
                   name: 'publicProfile',
                   builder: (_, state) => PublicProfileScreen(
-                    userId: int.parse(state.pathParameters['userId']!)),
+                    userId: int.parse(state.pathParameters['userId']!),
+                  ),
                 ),
               ],
             ),

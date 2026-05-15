@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/avatar_image_provider.dart';
+import '../../../core/ui/destination_image_resolver.dart';
 import '../../auth/domain/user_model.dart';
 import '../../auth/presentation/auth_provider.dart';
 import '../domain/participant_model.dart';
@@ -143,19 +145,27 @@ class _HeroBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final assetPath = resolveDestinationAsset(
+      destino: trip.destino,
+      estado: trip.estado,
+      cidade: trip.cidade,
+      atrativo: trip.atrativo,
+    );
+
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Gradiente base
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: _gradient(),
-            ),
-          ),
-        ),
+        if (assetPath != null)
+          Image.asset(
+            assetPath,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _fallbackBackground(),
+          )
+        else
+          _fallbackBackground(),
+
+        if (assetPath != null)
+          Container(color: Colors.black.withOpacity(0.22)),
 
         // Overlay escuro no fundo para legibilidade do título
         Positioned(
@@ -207,6 +217,18 @@ class _HeroBackground extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _fallbackBackground() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: _gradient(),
+        ),
+      ),
     );
   }
 }
@@ -615,9 +637,7 @@ class _ParticipanteItem extends StatelessWidget {
           CircleAvatar(
             radius: 22,
             backgroundColor: AppColors.sand,
-            backgroundImage: user?.foto != null
-                ? CachedNetworkImageProvider(user!.foto!)
-                : null,
+            backgroundImage: avatarImageProvider(user?.foto),
             child: user?.foto == null
                 ? Text(
                     user?.initials ?? '?',

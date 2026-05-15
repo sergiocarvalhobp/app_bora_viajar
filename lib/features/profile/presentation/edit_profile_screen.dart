@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +10,7 @@ import '../../../core/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/avatar_image_provider.dart';
 import '../../auth/domain/user_model.dart';
 import '../../auth/presentation/auth_provider.dart';
 
@@ -101,6 +102,9 @@ class EditProfileNotifier extends _$EditProfileNotifier {
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
       final dio = ref.read(apiClientProvider);
+      final avatarPayload = state.avatarFile != null
+          ? _fileToDataUrl(state.avatarFile!)
+          : null;
       await dio.patch(
         '${AppConstants.restApiPrefix}/profile/me',
         data: {
@@ -113,9 +117,9 @@ class EditProfileNotifier extends _$EditProfileNotifier {
           'cidadeResidencia': state.cidade.trim().isEmpty
               ? null
               : state.cidade.trim(),
+          if (avatarPayload != null) 'avatarUrl': avatarPayload,
         },
       );
-      // TODO: upload de avatar (multipart) quando o backend tiver o endpoint
       await ref.read(authNotifierProvider.notifier).refreshUser();
       state = state.copyWith(isSubmitting: false, success: true);
       if (context.mounted) {
@@ -130,6 +134,18 @@ class EditProfileNotifier extends _$EditProfileNotifier {
         error: ErrorHandler.handle(e).message,
       );
     }
+  }
+
+  String _fileToDataUrl(File file) {
+    final bytes = file.readAsBytesSync();
+    final b64 = base64Encode(bytes);
+    final lower = file.path.toLowerCase();
+    final mime = lower.endsWith('.png')
+        ? 'image/png'
+        : lower.endsWith('.webp')
+            ? 'image/webp'
+            : 'image/jpeg';
+    return 'data:$mime;base64,$b64';
   }
 }
 
@@ -358,9 +374,7 @@ class _AvatarPreview extends StatelessWidget {
       backgroundColor: AppColors.sand,
       backgroundImage: localFile != null
           ? FileImage(localFile!) as ImageProvider
-          : (user?.foto != null
-              ? CachedNetworkImageProvider(user!.foto!)
-              : null),
+          : avatarImageProvider(user?.foto),
       child: localFile == null && user?.foto == null
           ? Text(user?.initials ?? '?',
               style: const TextStyle(fontFamily: 'Nunito', fontSize: 28,

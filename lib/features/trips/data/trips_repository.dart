@@ -21,11 +21,23 @@ class TripsRepository {
 
   static const _p = AppConstants.restApiPrefix;
 
+  static void _throwIfHttpError(Response<dynamic> response) {
+    final status = response.statusCode ?? 0;
+    if (status >= 400) {
+      throw DioException(
+        requestOptions: response.requestOptions,
+        response: response,
+        type: DioExceptionType.badResponse,
+      );
+    }
+  }
+
   Future<List<TripModel>> listar(TripFilters filters) async {
     try {
       List<dynamic> rawList;
       if (filters.isEmpty) {
         final response = await _dio.get('$_p/trips');
+        _throwIfHttpError(response);
         rawList = response.data as List<dynamic>? ?? [];
       } else {
         final qp = <String, dynamic>{};
@@ -40,6 +52,7 @@ class TripsRepository {
           qp['dataFim'] = filters.dataFim!.toIso8601String().split('T').first;
         }
         final response = await _dio.get('$_p/trips/filter', queryParameters: qp);
+        _throwIfHttpError(response);
         rawList = response.data as List<dynamic>? ?? [];
       }
       var list = rawList

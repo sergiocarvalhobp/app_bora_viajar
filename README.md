@@ -52,24 +52,25 @@ Em Applications → seu app → **Allowed Callback URLs**, adicionar:
 br.com.boraviajar://callback
 ```
 
-### 6. Backend — Integrar mobile-routes.ts
-Ver instruções em `server/mobile-routes.ts`.
+### 6. API Java
+O app usa **apenas** a API REST (`api_boraviajar`): `POST /api/v1/auth/token`, `GET /api/v1/auth/me`, etc.
+No servidor, defina `JWT_SECRET`, `AUTH0_DOMAIN` e `AUTH0_CLIENT_ID` no serviço Java (ver `api_boraviajar/.env.example`).
 
 ### 7. Rodar
 ```bash
-# Emulador Android (localhost do host = 10.0.2.2)
+# Emulador Android (API na máquina host, porta 8081)
 flutter run \
-  --dart-define=BACKEND_URL=http://10.0.2.2:3000 \
+  --dart-define=API_BASE_URL=http://10.0.2.2:8081 \
   --dart-define=AUTH0_DOMAIN=seu-tenant.us.auth0.com
 
 # Simulador iOS
 flutter run \
-  --dart-define=BACKEND_URL=http://localhost:3000 \
+  --dart-define=API_BASE_URL=http://127.0.0.1:8081 \
   --dart-define=AUTH0_DOMAIN=seu-tenant.us.auth0.com
 
 # Produção
 flutter run \
-  --dart-define=BACKEND_URL=https://boraviajar.com.br \
+  --dart-define=API_BASE_URL=https://api.boraviajar.net \
   --dart-define=AUTH0_DOMAIN=seu-tenant.us.auth0.com
 ```
 

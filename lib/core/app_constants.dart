@@ -14,13 +14,7 @@ abstract final class AppConstants {
   /// Redirect nativo (flutter_appauth). Registrar no Auth0 em Allowed Callback URLs.
   static const auth0RedirectUri = 'br.com.boraviajar://callback';
 
-  /// `POST` relativo à base URL **Node**: troca `access_token` (Auth0) por `sessionToken` (JWT).
-  static const sessionTokenExchangePath = String.fromEnvironment(
-    'SESSION_TOKEN_EXCHANGE_PATH',
-    defaultValue: '/api/auth/token',
-  );
-
-  // ── Backend ───────────────────────────────────────────────────────────────
+  // ── Backend (API Java) ────────────────────────────────────────────────────
   static const httpTimeoutSeconds = 30;
 
   /// Prefixo da API REST Java (Spring Boot).

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../auth/presentation/auth_provider.dart';
 import '../data/trips_repository.dart';
 import '../domain/trip_model.dart';
 
@@ -37,6 +38,9 @@ class TripsFiltersNotifier extends _$TripsFiltersNotifier {
 /// Rebusca automaticamente quando os filtros mudam.
 @riverpod
 Future<List<TripModel>> tripsSearch(Ref ref) async {
+  final authState = ref.watch(authNotifierProvider);
+  if (authState is! AuthAuthenticated) return const [];
+
   final filters = ref.watch(tripsFiltersNotifierProvider);
   final repo    = ref.watch(tripsRepositoryProvider);
 
