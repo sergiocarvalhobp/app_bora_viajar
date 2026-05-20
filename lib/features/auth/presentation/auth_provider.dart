@@ -104,13 +104,20 @@ class AuthNotifier extends _$AuthNotifier {
     state = const AuthUnauthenticated();
   }
 
+  /// Atualiza o usuário em memória (ex.: resposta do PATCH /profile/me).
+  void applyUserProfile(UserModel user) {
+    if (state is AuthAuthenticated) {
+      _logState('applyUserProfile', state = AuthAuthenticated(user));
+    }
+  }
+
   /// Recarrega o perfil do usuário (após editar perfil, por exemplo).
   Future<void> refreshUser() async {
     try {
       final user = await _repo.getMe();
-      state = AuthAuthenticated(user);
-    } catch (_) {
-      // Mantém estado atual se falhar
+      applyUserProfile(user);
+    } catch (e) {
+      AuthDebug.log('refreshUser', 'falhou: $e');
     }
   }
 }

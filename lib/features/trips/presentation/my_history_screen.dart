@@ -17,10 +17,10 @@ enum HistoryTab { participando, liderando, todas }
 
 extension HistoryTabExt on HistoryTab {
   String get label => switch (this) {
-    HistoryTab.participando => 'Participando',
-    HistoryTab.liderando    => 'Liderando',
-    HistoryTab.todas        => 'Todas',
-  };
+        HistoryTab.participando => 'Participando',
+        HistoryTab.liderando => 'Liderando',
+        HistoryTab.todas => 'Todas',
+      };
 }
 
 // ── Provider ───────────────────────────────────────────────────────────────────
@@ -66,17 +66,15 @@ class _MyHistoryScreenState extends ConsumerState<MyHistoryScreen>
         foregroundColor: Colors.white,
         elevation: 0,
         title: const Text('Minhas viagens',
-            style: TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 20)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_rounded),
-            onPressed: () => context.push('/trips/create'),
-            tooltip: 'Criar viagem',
-          ),
-        ],
+            style: TextStyle(
+              fontFamily: 'DMSerifDisplay',
+              fontSize: 20,
+              color: Colors.white,
+            )),
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: Colors.white,
+          indicatorColor: AppColors.terra,
+          indicatorSize: TabBarIndicatorSize.label,
           indicatorWeight: 3,
           labelStyle: const TextStyle(
               fontFamily: 'Nunito', fontWeight: FontWeight.w700, fontSize: 13),
@@ -84,9 +82,7 @@ class _MyHistoryScreenState extends ConsumerState<MyHistoryScreen>
               fontFamily: 'Nunito', fontWeight: FontWeight.w500, fontSize: 13),
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white60,
-          tabs: HistoryTab.values
-              .map((t) => Tab(text: t.label))
-              .toList(),
+          tabs: HistoryTab.values.map((t) => Tab(text: t.label)).toList(),
         ),
       ),
       body: tripsAsync.when(
@@ -96,27 +92,19 @@ class _MyHistoryScreenState extends ConsumerState<MyHistoryScreen>
           controller: _tabController,
           children: [
             _TripsList(
-              trips:  trips.where((t) => t.myStatus != null).toList(),
-              label:  'Você ainda não está participando de nenhuma viagem.',
+              trips: trips.where((t) => t.myStatus != null).toList(),
+              label: 'Você ainda não está participando de nenhuma viagem.',
             ),
             _TripsList(
-              trips:  trips.where((t) => t.isLider == true).toList(),
-              label:  'Você ainda não criou nenhuma viagem.',
+              trips: trips.where((t) => t.isLider == true).toList(),
+              label: 'Você ainda não criou nenhuma viagem.',
             ),
             _TripsList(
-              trips:  trips,
-              label:  'Nenhuma viagem encontrada.',
+              trips: trips,
+              label: 'Nenhuma viagem encontrada.',
             ),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/trips/create'),
-        backgroundColor: AppColors.terra,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Criar viagem',
-            style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
       ),
     );
   }
@@ -154,7 +142,9 @@ class _MyHistoryScreenState extends ConsumerState<MyHistoryScreen>
             const SizedBox(height: 16),
             const Text('Não foi possível carregar suas viagens',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 20,
+                style: TextStyle(
+                    fontFamily: 'DMSerifDisplay',
+                    fontSize: 20,
                     color: AppColors.bark)),
             const SizedBox(height: 20),
             ElevatedButton.icon(
@@ -188,7 +178,9 @@ class _TripsList extends StatelessWidget {
               const SizedBox(height: 16),
               Text(label,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontFamily: 'Nunito', fontSize: 15,
+                  style: const TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 15,
                       color: AppColors.barkMuted)),
               const SizedBox(height: 20),
               OutlinedButton.icon(
@@ -204,15 +196,14 @@ class _TripsList extends StatelessWidget {
 
     return RefreshIndicator(
       color: AppColors.forest,
-      onRefresh: () async =>
-          GoRouter.of(context).refresh(),
+      onRefresh: () async => GoRouter.of(context).refresh(),
       child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         itemCount: trips.length,
         itemBuilder: (context, i) => Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: TripCard(
-            trip:  trips[i],
+            trip: trips[i],
             onTap: () => GoRouter.of(context).push('/trips/${trips[i].id}'),
           ),
         ),

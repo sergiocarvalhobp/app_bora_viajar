@@ -70,8 +70,8 @@ class _ChatTripScreenState extends ConsumerState<ChatTripScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tripAsync   = ref.watch(tripDetailsProvider(widget.tripId));
-    final chatState   = ref.watch(chatNotifierProvider(widget.tripId));
+    final tripAsync = ref.watch(tripDetailsProvider(widget.tripId));
+    final chatState = ref.watch(chatNotifierProvider(widget.tripId));
     final currentUser = ref.watch(currentUserProvider);
 
     // Scroll ao receber novas mensagens
@@ -92,10 +92,10 @@ class _ChatTripScreenState extends ConsumerState<ChatTripScreen> {
           // ── Lista de mensagens ─────────────────────────────────────────
           Expanded(
             child: _MessageList(
-              messages:       chatState.messages,
-              currentUser:    currentUser,
+              messages: chatState.messages,
+              currentUser: currentUser,
               scrollController: _scrollController,
-              tripId:         widget.tripId,
+              tripId: widget.tripId,
             ),
           ),
 
@@ -111,11 +111,11 @@ class _ChatTripScreenState extends ConsumerState<ChatTripScreen> {
 
           // ── Input de mensagem ──────────────────────────────────────────
           _MessageInput(
-            controller:  _inputController,
-            focusNode:   _focusNode,
-            canSend:     _canSend,
-            isSending:   chatState.isSending,
-            onSend:      _send,
+            controller: _inputController,
+            focusNode: _focusNode,
+            canSend: _canSend,
+            isSending: chatState.isSending,
+            onSend: _send,
           ),
         ],
       ),
@@ -145,9 +145,11 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       title: tripAsync.when(
         loading: () => const Text('Chat',
-            style: TextStyle(fontFamily: 'DMSerifDisplay', color: Colors.white)),
+            style:
+                TextStyle(fontFamily: 'DMSerifDisplay', color: Colors.white)),
         error: (_, __) => const Text('Chat',
-            style: TextStyle(fontFamily: 'DMSerifDisplay', color: Colors.white)),
+            style:
+                TextStyle(fontFamily: 'DMSerifDisplay', color: Colors.white)),
         data: (trip) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -166,7 +168,7 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
               style: TextStyle(
                 fontFamily: 'Nunito',
                 fontSize: 12,
-                color: Colors.white.withOpacity( 0.75),
+                color: Colors.white.withOpacity(0.75),
               ),
             ),
           ],
@@ -218,24 +220,25 @@ class _MessageList extends StatelessWidget {
           return _DateDivider(label: item.label);
         }
 
-        final msg     = item as MessageModel;
+        final msg = item as MessageModel;
         final isMinha = currentUser != null && msg.isMinha(currentUser!.id);
         final isOtimista = msg is OptimisticMessage;
 
         // Verifica se deve mostrar o avatar (primeiro de uma sequência)
-        final showAvatar = !isMinha && (i == 0 ||
-            groups[i - 1] is _DateSeparator ||
-            (groups[i - 1] is MessageModel &&
-                (groups[i - 1] as MessageModel).senderId != msg.senderId));
+        final showAvatar = !isMinha &&
+            (i == 0 ||
+                groups[i - 1] is _DateSeparator ||
+                (groups[i - 1] is MessageModel &&
+                    (groups[i - 1] as MessageModel).senderId != msg.senderId));
 
         return _MessageBubble(
           key: ValueKey(msg.id),
-          message:      msg,
-          isMinha:      isMinha,
-          showAvatar:   showAvatar,
-          isPending:    isOtimista && (msg).pending,
-          isFailed:     isOtimista && (msg).failed,
-          onReenviar:   isOtimista && (msg).failed
+          message: msg,
+          isMinha: isMinha,
+          showAvatar: showAvatar,
+          isPending: isOtimista && (msg).pending,
+          isFailed: isOtimista && (msg).failed,
+          onReenviar: isOtimista && (msg).failed
               ? () {} // será conectado via Consumer
               : null,
         );
@@ -260,9 +263,9 @@ class _MessageList extends StatelessWidget {
   }
 
   String _formatDate(DateTime dt) {
-    final now   = DateTime.now();
+    final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final d     = DateTime(dt.year, dt.month, dt.day);
+    final d = DateTime(dt.year, dt.month, dt.day);
 
     if (d == today) return 'Hoje';
     if (d == today.subtract(const Duration(days: 1))) return 'Ontem';
@@ -302,8 +305,8 @@ class _MessageBubble extends ConsumerWidget {
     return Padding(
       padding: EdgeInsets.only(
         bottom: 2,
-        left:  isMinha ? 48 : 0,
-        right: isMinha ? 0  : 48,
+        left: isMinha ? 48 : 0,
+        right: isMinha ? 0 : 48,
       ),
       child: Row(
         mainAxisAlignment:
@@ -322,13 +325,10 @@ class _MessageBubble extends ConsumerWidget {
           // Bolha
           Flexible(
             child: GestureDetector(
-              onLongPress: isMinha
-                  ? () => _onLongPress(context)
-                  : null,
+              onLongPress: isMinha ? () => _onLongPress(context) : null,
               child: Column(
-                crossAxisAlignment: isMinha
-                    ? CrossAxisAlignment.end
-                    : CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    isMinha ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                 children: [
                   // Nome do remetente (mensagens alheias, apenas primeiro da sequência)
                   if (!isMinha && showAvatar)
@@ -350,18 +350,16 @@ class _MessageBubble extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: isMinha
-                          ? AppColors.forest
-                          : Colors.white,
+                      color: isMinha ? AppColors.forest : Colors.white,
                       borderRadius: BorderRadius.only(
-                        topLeft:     const Radius.circular(18),
-                        topRight:    const Radius.circular(18),
-                        bottomLeft:  Radius.circular(isMinha ? 18 : 4),
-                        bottomRight: Radius.circular(isMinha ? 4  : 18),
+                        topLeft: const Radius.circular(18),
+                        topRight: const Radius.circular(18),
+                        bottomLeft: Radius.circular(isMinha ? 18 : 4),
+                        bottomRight: Radius.circular(isMinha ? 4 : 18),
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity( 0.06),
+                          color: Colors.black.withOpacity(0.06),
                           blurRadius: 4,
                           offset: const Offset(0, 2),
                         ),
@@ -396,7 +394,7 @@ class _MessageBubble extends ConsumerWidget {
                           const SizedBox(width: 4),
                           _StatusIcon(
                             isPending: isPending,
-                            isFailed:  isFailed,
+                            isFailed: isFailed,
                           ),
                         ],
                       ],
@@ -408,7 +406,8 @@ class _MessageBubble extends ConsumerWidget {
                     TextButton.icon(
                       onPressed: () {
                         if (message is OptimisticMessage) {
-                          ref.read(chatNotifierProvider(tripId).notifier)
+                          ref
+                              .read(chatNotifierProvider(tripId).notifier)
                               .reenviar(message as OptimisticMessage);
                         }
                       },
@@ -459,7 +458,8 @@ class _StatusIcon extends StatelessWidget {
     }
     if (isPending) {
       return const SizedBox(
-        width: 10, height: 10,
+        width: 10,
+        height: 10,
         child: CircularProgressIndicator(
           strokeWidth: 1.5,
           valueColor: AlwaysStoppedAnimation(AppColors.barkMuted),
@@ -467,8 +467,7 @@ class _StatusIcon extends StatelessWidget {
       );
     }
     // Enviado com sucesso
-    return const Icon(Icons.done_all_rounded,
-        size: 12, color: Colors.white70);
+    return const Icon(Icons.done_all_rounded, size: 12, color: Colors.white70);
   }
 }
 
@@ -535,6 +534,16 @@ class _DateDivider extends StatelessWidget {
 
 // ── Input de mensagem ──────────────────────────────────────────────────────────
 
+OutlineInputBorder _chatInputBorder({Color? color, double width = 1}) {
+  return OutlineInputBorder(
+    borderRadius: BorderRadius.circular(24),
+    borderSide: BorderSide(
+      color: color ?? AppColors.sand,
+      width: width,
+    ),
+  );
+}
+
 class _MessageInput extends StatelessWidget {
   const _MessageInput({
     required this.controller,
@@ -554,15 +563,17 @@ class _MessageInput extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.fromLTRB(
-        12, 10, 12,
+        12,
+        10,
+        12,
         10 + MediaQuery.of(context).padding.bottom,
       ),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.cream,
         border: const Border(top: BorderSide(color: AppColors.sand)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.bark.withOpacity( 0.06),
+            color: AppColors.bark.withOpacity(0.06),
             blurRadius: 12,
             offset: const Offset(0, -2),
           ),
@@ -571,37 +582,40 @@ class _MessageInput extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // Campo de texto
+          // Campo de texto — borda e fundo só no InputDecoration (evita retângulo interno)
           Expanded(
-            child: Container(
+            child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 120),
-              decoration: BoxDecoration(
-                color: AppColors.cream,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.sand),
-              ),
               child: TextField(
-                controller:  controller,
-                focusNode:   focusNode,
-                maxLines:    null,
+                controller: controller,
+                focusNode: focusNode,
+                maxLines: null,
                 keyboardType: TextInputType.multiline,
                 textCapitalization: TextCapitalization.sentences,
+                cursorColor: AppColors.forest,
                 style: const TextStyle(
                   fontFamily: 'Nunito',
                   fontSize: 14,
                   color: AppColors.bark,
                 ),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.white,
                   hintText: 'Mensagem...',
-                  hintStyle: TextStyle(
+                  hintStyle: const TextStyle(
                     fontFamily: 'Nunito',
                     fontSize: 14,
                     color: AppColors.barkMuted,
                   ),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
+                  contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 10,
+                  ),
+                  border: _chatInputBorder(),
+                  enabledBorder: _chatInputBorder(),
+                  focusedBorder: _chatInputBorder(
+                    color: AppColors.forest,
+                    width: 1.5,
                   ),
                 ),
                 onSubmitted: (_) => canSend ? onSend() : null,
@@ -618,18 +632,22 @@ class _MessageInput extends StatelessWidget {
             child: GestureDetector(
               onTap: canSend && !isSending ? onSend : null,
               child: Container(
-                width: 44, height: 44,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  color: canSend ? AppColors.forest : AppColors.sand,
+                  color: canSend ? AppColors.forest : AppColors.cream,
                   shape: BoxShape.circle,
+                  border: canSend
+                      ? null
+                      : Border.all(
+                          color: AppColors.barkMuted.withOpacity(0.35)),
                 ),
                 child: isSending
                     ? const Padding(
                         padding: EdgeInsets.all(12),
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation(Colors.white),
+                          valueColor: AlwaysStoppedAnimation(Colors.white),
                         ),
                       )
                     : Icon(
@@ -660,9 +678,10 @@ class _EmptyChatState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 72, height: 72,
+              width: 72,
+              height: 72,
               decoration: BoxDecoration(
-                color: AppColors.forest.withOpacity( 0.1),
+                color: AppColors.forest.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(

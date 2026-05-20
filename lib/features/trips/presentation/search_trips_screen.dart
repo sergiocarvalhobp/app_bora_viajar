@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../core/ui/avatar_image_provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../auth/presentation/auth_provider.dart';
 import '../domain/trip_model.dart';
 import '../presentation/trips_provider.dart';
 import '../widgets/trip_card.dart';
@@ -17,10 +19,25 @@ class SearchTripsScreen extends ConsumerStatefulWidget {
 
 class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    if (pos.pixels < pos.maxScrollExtent - 280) return;
+    ref.read(tripsSearchProvider.notifier).loadMore();
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -29,15 +46,17 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
     final filters      = ref.watch(tripsFiltersNotifierProvider);
     final tripsAsync   = ref.watch(tripsSearchProvider);
     final filtersNotif = ref.read(tripsFiltersNotifierProvider.notifier);
+    final user         = ref.watch(currentUserProvider);
 
     return Scaffold(
       backgroundColor: AppColors.cream,
       body: CustomScrollView(
+        controller: _scrollController,
         slivers: [
           // ── App Bar expansível ──────────────────────────────────────────
           SliverAppBar(
             backgroundColor: AppColors.forest,
-            expandedHeight: 140,
+            expandedHeight: 188,
             floating: false,
             pinned: true,
             elevation: 0,
@@ -56,7 +75,13 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
                 children: [
                   Container(color: AppColors.forest),
                   Positioned(
-                    top: 56,
+                    top: MediaQuery.paddingOf(context).top + 10,
+                    left: 16,
+                    right: 16,
+                    child: _LoggedHeaderRow(user: user),
+                  ),
+                  Positioned(
+                    top: MediaQuery.paddingOf(context).top + 54,
                     left: 20,
                     child: Text(
                       'Encontre companheiros pelo Brasil',
@@ -70,34 +95,6 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
                 ],
               ),
             ),
-            actions: [
-              // Botão criar viagem
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: TextButton.icon(
-                  onPressed: () => context.push('/trips/create'),
-                  icon: const Icon(Icons.add_rounded,
-                      color: Colors.white, size: 18),
-                  label: const Text(
-                    'Criar',
-                    style: TextStyle(
-                      fontFamily: 'Nunito',
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      fontSize: 13,
-                    ),
-                  ),
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.white.withOpacity( 0.15),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                ),
-              ),
-            ],
           ),
 
           // ── Barra de busca + filtros ────────────────────────────────────
@@ -149,7 +146,8 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
               ),
             ),
 
-            data: (trips) {
+            data: (searchState) {
+              final trips = searchState.trips;
               if (trips.isEmpty) {
                 return SliverFillRemaining(
                   child: _EmptyState(
@@ -163,14 +161,33 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (context, i) => Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: TripCard(
-                        trip: trips[i],
-                        onTap: () => context.push('/trips/${trips[i].id}'),
-                      ),
-                    ),
-                    childCount: trips.length,
+                    (context, i) {
+                      if (i >= trips.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Center(
+                            child: SizedBox(
+                              width: 28,
+                              height: 28,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: AppColors.forest,
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: TripCard(
+                          trip: trips[i],
+                          showActions: true,
+                          onTap: () => context.push('/trips/${trips[i].id}'),
+                        ),
+                      );
+                    },
+                    childCount:
+                        trips.length + (searchState.isLoadingMore ? 1 : 0),
                   ),
                 ),
               );
@@ -187,6 +204,92 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _FiltrosSheet(ref: ref),
+    );
+  }
+}
+
+class _LoggedHeaderRow extends StatelessWidget {
+  const _LoggedHeaderRow({required this.user});
+  final dynamic user;
+
+  String _firstName(String? name) {
+    final n = (name ?? '').trim();
+    if (n.isEmpty) return 'Viajante';
+    return n.split(RegExp(r'\s+')).first;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final firstName = _firstName(user?.name as String?);
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Olá, $firstName',
+            style: const TextStyle(
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w800,
+              fontSize: 21,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        IconButton(
+          onPressed: () => context.go('/notifications'),
+          icon: const Icon(
+            Icons.notifications_none_rounded,
+            color: Colors.white,
+            size: 24,
+          ),
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.white.withOpacity(0.15),
+            shape: const CircleBorder(),
+          ),
+        ),
+        const SizedBox(width: 8),
+        GestureDetector(
+          onTap: () => context.go('/profile/edit'),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              CircleAvatar(
+                key: ValueKey(user?.foto ?? 'no-avatar'),
+                radius: 19,
+                backgroundColor: Colors.white24,
+                backgroundImage: avatarImageProvider(user?.foto as String?),
+                child: (user?.foto as String?) == null
+                    ? Text(
+                        _firstName(user?.name as String?).substring(0, 1).toUpperCase(),
+                        style: const TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      )
+                    : null,
+              ),
+              Positioned(
+                right: -1,
+                bottom: -2,
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: AppColors.terra,
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: AppColors.forest, width: 1.5),
+                  ),
+                  child: const Icon(
+                    Icons.edit_rounded,
+                    size: 11,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -1,28 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/errors/app_exception.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/avatar_image_provider.dart';
 import '../../../core/ui/destination_image_resolver.dart';
+import '../../auth/presentation/auth_provider.dart';
 import '../domain/trip_model.dart';
+import '../presentation/trip_details_provider.dart';
 
 /// Card de viagem — usado na SearchTripsScreen e MyHistoryScreen.
-class TripCard extends StatelessWidget {
+class TripCard extends ConsumerWidget {
   const TripCard({
     super.key,
     required this.trip,
     required this.onTap,
+    this.showActions = false,
   });
 
   final TripModel trip;
   final VoidCallback onTap;
+  final bool showActions;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tt = Theme.of(context).textTheme;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
+    return Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
@@ -38,12 +43,28 @@ class TripCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.vertical(
+                  top: const Radius.circular(20),
+                  bottom: Radius.circular(showActions ? 0 : 20),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
             // ── Imagem do destino ───────────────────────────────────────
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               child: AspectRatio(
                 aspectRatio: 16 / 9,
-                child: _DestinationImage(destino: trip.destino),
+                child: _DestinationImage(
+                  destino: trip.destino,
+                  estado: trip.estado,
+                  cidade: trip.cidade,
+                  atrativo: trip.atrativo,
+                ),
               ),
             ),
 
@@ -162,8 +183,379 @@ class TripCard extends StatelessWidget {
                 ],
               ),
             ),
+                  ],
+                ),
+              ),
+            ),
+            if (showActions)
+              _TripCardActions(trip: trip),
           ],
         ),
+      );
+  }
+}
+
+// ── Ações: chat + participar (home) ───────────────────────────────────────────
+
+class _TripCardActions extends ConsumerWidget {
+  const _TripCardActions({required this.trip});
+  final TripModel trip;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
+    final participation =
+        ref.watch(tripParticipationNotifierProvider(trip.id));
+
+    ref.listen(tripParticipationNotifierProvider(trip.id), (prev, next) {
+      if (next is AsyncError) {
+        final msg = next.error is AppException
+            ? (next.error as AppException).message
+            : 'Não foi possível atualizar sua participação.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg)),
+        );
+      } else if (prev is AsyncLoading && next is AsyncData) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              trip.isParticipando
+                  ? 'Interesse cancelado.'
+                  : 'Interesse enviado! O organizador foi avisado.',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    });
+
+    final isLider = user?.id == trip.liderId;
+    final isLoading = participation is AsyncLoading;
+    final canChat = isLider || trip.isParticipando;
+    final canParticipar =
+        !isLider && !trip.isParticipando && trip.temVagasDisponiveis;
+    final isLotado = !isLider && !trip.isParticipando && !trip.temVagasDisponiveis;
+
+    if (!canChat && !canParticipar && !isLotado && !isLider) {
+      return const SizedBox.shrink();
+    }
+
+    final notif =
+        ref.read(tripParticipationNotifierProvider(trip.id).notifier);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Divider(height: 1, thickness: 1, color: AppColors.sand),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          child: Row(
+            children: [
+              if (canChat) ...[
+                _CardChatButton(
+                  tooltip: 'Abrir chat',
+                  onTap: () => context.push('/trips/${trip.id}/chat'),
+                ),
+                const SizedBox(width: 10),
+              ],
+              if (isLider)
+                const Expanded(
+                  child: _CardStatusChip(
+                    label: 'Você organiza',
+                    icon: Icons.star_rounded,
+                    variant: _CardActionVariant.muted,
+                  ),
+                )
+              else if (canParticipar)
+                Expanded(
+                  child: _CardActionButton(
+                    label: 'Quero participar',
+                    icon: Icons.explore_outlined,
+                    variant: _CardActionVariant.primary,
+                    isLoading: isLoading,
+                    onTap: isLoading ? null : () => notif.participar(),
+                  ),
+                )
+              else if (trip.isParticipando)
+                Expanded(
+                  child: _CardParticipatingBar(
+                    confirmed: trip.myStatus == 'confirmado',
+                    isLoading: isLoading,
+                    onCancel: () => _confirmCancelInterest(context, notif),
+                  ),
+                )
+              else if (isLotado)
+                const Expanded(
+                  child: _CardStatusChip(
+                    label: 'Viagem lotada',
+                    icon: Icons.event_busy_rounded,
+                    variant: _CardActionVariant.muted,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirmCancelInterest(
+    BuildContext context,
+    TripParticipationNotifier notif,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancelar interesse?',
+            style: TextStyle(fontFamily: 'DMSerifDisplay')),
+        content: const Text(
+          'Você deixará de aparecer como interessado nesta viagem.',
+          style: TextStyle(fontFamily: 'Nunito'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Manter'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Cancelar interesse',
+                style: TextStyle(color: AppColors.terra)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && context.mounted) {
+      await notif.cancelar();
+    }
+  }
+}
+
+enum _CardActionVariant { primary, success, muted }
+
+class _CardChatButton extends StatelessWidget {
+  const _CardChatButton({required this.onTap, this.tooltip});
+  final VoidCallback onTap;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip ?? '',
+      child: Material(
+        color: AppColors.forest.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.forest.withOpacity(0.35)),
+            ),
+            child: const Icon(
+              Icons.chat_bubble_outline_rounded,
+              color: AppColors.forest,
+              size: 20,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CardActionButton extends StatelessWidget {
+  const _CardActionButton({
+    required this.label,
+    required this.icon,
+    required this.variant,
+    this.onTap,
+    this.isLoading = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final _CardActionVariant variant;
+  final VoidCallback? onTap;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = switch (variant) {
+      _CardActionVariant.primary => (
+        bg: AppColors.terra,
+        fg: Colors.white,
+        border: AppColors.terra,
+      ),
+      _CardActionVariant.success => (
+        bg: const Color(0xFFE8F5EE),
+        fg: AppColors.forest,
+        border: AppColors.forest.withOpacity(0.35),
+      ),
+      _CardActionVariant.muted => (
+        bg: AppColors.sand,
+        fg: AppColors.barkMuted,
+        border: AppColors.sand,
+      ),
+    };
+
+    return Material(
+      color: colors.bg,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: isLoading ? null : onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: colors.border),
+          ),
+          child: isLoading
+              ? SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation(colors.fg),
+                  ),
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, size: 17, color: colors.fg),
+                    const SizedBox(width: 6),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        color: colors.fg,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CardStatusChip extends StatelessWidget {
+  const _CardStatusChip({
+    required this.label,
+    required this.icon,
+    required this.variant,
+  });
+
+  final String label;
+  final IconData icon;
+  final _CardActionVariant variant;
+
+  @override
+  Widget build(BuildContext context) {
+    return _CardActionButton(
+      label: label,
+      icon: icon,
+      variant: variant,
+    );
+  }
+}
+
+class _CardParticipatingBar extends StatelessWidget {
+  const _CardParticipatingBar({
+    required this.confirmed,
+    required this.isLoading,
+    required this.onCancel,
+  });
+
+  final bool confirmed;
+  final bool isLoading;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = confirmed ? 'Confirmado pelo líder' : 'Interesse enviado';
+    final subtitle = confirmed
+        ? 'Você faz parte desta viagem'
+        : 'Aguardando resposta do organizador';
+
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F5EE),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.forest.withOpacity(0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            confirmed ? Icons.verified_rounded : Icons.check_circle_rounded,
+            color: AppColors.forest,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    color: AppColors.forest,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 10,
+                    color: AppColors.forest.withOpacity(0.75),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (!confirmed)
+            TextButton(
+              onPressed: isLoading ? null : onCancel,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.terra,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: isLoading
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text(
+                      'Cancelar',
+                      style: TextStyle(
+                        fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
+                    ),
+            ),
+        ],
       ),
     );
   }
@@ -172,8 +564,17 @@ class TripCard extends StatelessWidget {
 // ── Imagem do destino ──────────────────────────────────────────────────────────
 
 class _DestinationImage extends StatelessWidget {
-  const _DestinationImage({required this.destino});
+  const _DestinationImage({
+    required this.destino,
+    this.estado,
+    this.cidade,
+    this.atrativo,
+  });
+
   final String destino;
+  final String? estado;
+  final String? cidade;
+  final String? atrativo;
 
   // Gradientes por bioma brasileiro (fallback visual sem depender de API)
   static const _gradients = {
@@ -195,23 +596,29 @@ class _DestinationImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final assetPath = resolveDestinationAsset(destino: destino);
+    final assetPath = resolveDestinationAsset(
+      destino: destino,
+      estado: estado,
+      cidade: cidade,
+      atrativo: atrativo,
+    );
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (assetPath != null)
-          Image.asset(
-            assetPath,
+        Image.asset(
+          assetPath,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Image.asset(
+            defaultDestinationAsset,
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => _fallbackBackground(),
-          )
-        else
-          _fallbackBackground(),
+          ),
+        ),
 
         // Overlay para legibilidade
         Container(
-          color: Colors.black.withOpacity(assetPath != null ? 0.20 : 0.10),
+          color: Colors.black.withOpacity(0.20),
         ),
 
         // Overlay escuro suave na base para legibilidade

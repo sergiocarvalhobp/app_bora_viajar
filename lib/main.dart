@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
 import 'core/firebase_bootstrap.dart';
@@ -23,6 +24,9 @@ Future<void> main() async {
   }
 
   await bootstrapFirebase();
+
+  // Necessário para DateFormat com locale pt_BR (chat, datas de viagens, etc.)
+  await initializeDateFormatting('pt_BR');
 
   // Força orientação portrait — app de viagens faz mais sentido vertical
   await SystemChrome.setPreferredOrientations([

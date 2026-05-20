@@ -76,14 +76,18 @@ class NotificationsScreen extends ConsumerWidget {
         foregroundColor: Colors.white,
         elevation: 0,
         title: const Text('Notificações',
-            style: TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 20)),
+            style: TextStyle(
+              fontFamily: 'DMSerifDisplay',
+              fontSize: 20,
+              color: Colors.white,
+            )),
         actions: [
           async.maybeWhen(
             data: (list) => list.any((n) => !n.lida)
                 ? TextButton(
                     onPressed: notif.marcarTodasLidas,
                     child: const Text('Marcar todas',
-                        style: TextStyle(color: Colors.white70,
+                        style: TextStyle(color: Colors.white,
                             fontFamily: 'Nunito', fontSize: 12)),
                   )
                 : const SizedBox.shrink(),

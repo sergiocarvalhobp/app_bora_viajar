@@ -7,6 +7,7 @@ import '../../../core/errors/error_handler.dart';
 import '../../../core/network/api_client.dart';
 import '../domain/participant_model.dart';
 import '../domain/trip_model.dart';
+import '../domain/trips_page.dart';
 
 part 'trips_repository.g.dart';
 
@@ -32,42 +33,74 @@ class TripsRepository {
     }
   }
 
-  Future<List<TripModel>> listar(TripFilters filters) async {
+  Future<TripsPage> listarPaginado({
+    required TripFilters filters,
+    required int offset,
+    required int limit,
+  }) async {
     try {
-      List<dynamic> rawList;
+      final qp = <String, dynamic>{
+        'offset': offset,
+        'limit': limit,
+      };
+      final Response<dynamic> response;
       if (filters.isEmpty) {
-        final response = await _dio.get('$_p/trips');
-        _throwIfHttpError(response);
-        rawList = response.data as List<dynamic>? ?? [];
+        response = await _dio.get('$_p/trips', queryParameters: qp);
       } else {
-        final qp = <String, dynamic>{};
         if (filters.query != null && filters.query!.isNotEmpty) {
           qp['destino'] = filters.query;
         }
         if (filters.estado != null) qp['estado'] = filters.estado;
         if (filters.dataInicio != null) {
-          qp['dataInicio'] = filters.dataInicio!.toIso8601String().split('T').first;
+          qp['dataInicio'] =
+              filters.dataInicio!.toIso8601String().split('T').first;
         }
         if (filters.dataFim != null) {
           qp['dataFim'] = filters.dataFim!.toIso8601String().split('T').first;
         }
-        final response = await _dio.get('$_p/trips/filter', queryParameters: qp);
-        _throwIfHttpError(response);
-        rawList = response.data as List<dynamic>? ?? [];
+        response = await _dio.get('$_p/trips/filter', queryParameters: qp);
       }
-      var list = rawList
-          .map((e) => TripModel.fromJson(e as Map<String, dynamic>))
-          .toList();
-      if (filters.tipo != null) {
-        list = list.where((t) => t.tipo == filters.tipo).toList();
-      }
-      if (filters.apenasComVagas) {
-        list = list.where((t) => t.temVagasDisponiveis).toList();
-      }
-      return list;
+      _throwIfHttpError(response);
+      return _parseTripsPage(response.data, filters);
     } catch (e) {
       throw ErrorHandler.handle(e);
     }
+  }
+
+  TripsPage _parseTripsPage(dynamic data, TripFilters filters) {
+    List<dynamic> rawList;
+    int fetchedCount;
+    bool hasMore;
+    int total;
+
+    if (data is List<dynamic>) {
+      rawList = data;
+      fetchedCount = rawList.length;
+      hasMore = false;
+      total = rawList.length;
+    } else {
+      final map = data as Map<String, dynamic>? ?? {};
+      rawList = map['items'] as List<dynamic>? ?? [];
+      fetchedCount = rawList.length;
+      hasMore = map['hasMore'] as bool? ?? false;
+      total = (map['total'] as num?)?.toInt() ?? fetchedCount;
+    }
+
+    var list = rawList
+        .map((e) => TripModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+    if (filters.tipo != null) {
+      list = list.where((t) => t.tipo == filters.tipo).toList();
+    }
+    if (filters.apenasComVagas) {
+      list = list.where((t) => t.temVagasDisponiveis).toList();
+    }
+    return TripsPage(
+      items: list,
+      fetchedCount: fetchedCount,
+      hasMore: hasMore,
+      total: total,
+    );
   }
 
   Future<List<TripModel>> minhasViagens() async {
@@ -143,15 +176,24 @@ class TripsRepository {
 
   Future<void> participar(int viagemId) async {
     try {
-      await _dio.post('$_p/participantes/join', data: {'viagemId': viagemId});
+      final response = await _dio.post(
+        '$_p/participantes/join',
+        data: {'viagemId': viagemId},
+      );
+      _throwIfHttpError(response);
     } catch (e) {
       throw ErrorHandler.handle(e);
     }
   }
 
+  /// Remove a participação na tabela `participantes` (API Java POST /leave).
   Future<void> cancelarParticipacao(int viagemId) async {
     try {
-      await _dio.post('$_p/participantes/leave', data: {'viagemId': viagemId});
+      final response = await _dio.post(
+        '$_p/participantes/leave',
+        data: {'viagemId': viagemId},
+      );
+      _throwIfHttpError(response);
     } catch (e) {
       throw ErrorHandler.handle(e);
     }

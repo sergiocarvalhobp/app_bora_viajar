@@ -1,4 +1,3 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../auth/presentation/auth_provider.dart';
@@ -32,24 +31,100 @@ class TripsFiltersNotifier extends _$TripsFiltersNotifier {
   void limparTudo() => state = const TripFilters();
 }
 
-// ── Provider de viagens ────────────────────────────────────────────────────────
+// ── Estado da lista paginada (home) ─────────────────────────────────────────────
 
-/// Busca viagens reativas aos filtros atuais.
-/// Rebusca automaticamente quando os filtros mudam.
+class TripsSearchState {
+  const TripsSearchState({
+    this.trips = const [],
+    this.serverOffset = 0,
+    this.hasMore = false,
+    this.isLoadingMore = false,
+  });
+
+  final List<TripModel> trips;
+  final int serverOffset;
+  final bool hasMore;
+  final bool isLoadingMore;
+
+  TripsSearchState copyWith({
+    List<TripModel>? trips,
+    int? serverOffset,
+    bool? hasMore,
+    bool? isLoadingMore,
+  }) {
+    return TripsSearchState(
+      trips: trips ?? this.trips,
+      serverOffset: serverOffset ?? this.serverOffset,
+      hasMore: hasMore ?? this.hasMore,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+    );
+  }
+}
+
+// ── Provider de viagens (paginação) ───────────────────────────────────────────
+
+/// Primeira página: 10 viagens. Scroll no fim: +5 por vez.
 @riverpod
-Future<List<TripModel>> tripsSearch(Ref ref) async {
-  final authState = ref.watch(authNotifierProvider);
-  if (authState is! AuthAuthenticated) return const [];
+class TripsSearch extends _$TripsSearch {
+  static const _initialLimit = 10;
+  static const _loadMoreLimit = 5;
 
-  final filters = ref.watch(tripsFiltersNotifierProvider);
-  final repo    = ref.watch(tripsRepositoryProvider);
+  @override
+  Future<TripsSearchState> build() async {
+    final authState = ref.watch(authNotifierProvider);
+    if (authState is! AuthAuthenticated) {
+      return const TripsSearchState();
+    }
 
-  // Debounce suave — evita chamada a cada tecla no campo de busca
-  if (filters.query != null && filters.query!.length == 1) {
-    await Future.delayed(const Duration(milliseconds: 400));
-    // Cancela se o query mudou durante o debounce
-    ref.keepAlive();
+    final filters = ref.watch(tripsFiltersNotifierProvider);
+    final repo = ref.watch(tripsRepositoryProvider);
+
+    if (filters.query != null && filters.query!.length == 1) {
+      await Future.delayed(const Duration(milliseconds: 400));
+    }
+
+    final page = await repo.listarPaginado(
+      filters: filters,
+      offset: 0,
+      limit: _initialLimit,
+    );
+
+    return TripsSearchState(
+      trips: page.items,
+      serverOffset: page.fetchedCount,
+      hasMore: page.hasMore,
+    );
   }
 
-  return repo.listar(filters);
+  Future<void> loadMore() async {
+    final current = state.valueOrNull;
+    if (current == null ||
+        !current.hasMore ||
+        current.isLoadingMore) {
+      return;
+    }
+
+    state = AsyncData(current.copyWith(isLoadingMore: true));
+
+    try {
+      final filters = ref.read(tripsFiltersNotifierProvider);
+      final repo = ref.read(tripsRepositoryProvider);
+      final page = await repo.listarPaginado(
+        filters: filters,
+        offset: current.serverOffset,
+        limit: _loadMoreLimit,
+      );
+
+      state = AsyncData(
+        current.copyWith(
+          trips: [...current.trips, ...page.items],
+          serverOffset: current.serverOffset + page.fetchedCount,
+          hasMore: page.hasMore,
+          isLoadingMore: false,
+        ),
+      );
+    } catch (_) {
+      state = AsyncData(current.copyWith(isLoadingMore: false));
+    }
+  }
 }

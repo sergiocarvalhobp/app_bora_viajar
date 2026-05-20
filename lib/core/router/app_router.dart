@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../theme/app_colors.dart';
 import '../../features/auth/presentation/auth_provider.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/trips/presentation/search_trips_screen.dart';
@@ -154,34 +155,157 @@ class _AppShell extends StatelessWidget {
   const _AppShell({required this.shell});
   final StatefulNavigationShell shell;
 
+  /// Chat precisa do rodapé livre para o campo de mensagem (sem FAB/nav).
+  static bool _isChatRoute(BuildContext context) {
+    return GoRouterState.of(context).uri.path.endsWith('/chat');
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final hideBottomChrome = _isChatRoute(context);
+
+    // Menu sempre branco — não herda surface escura do ThemeMode.system (dark).
+    return Theme(
+      data: Theme.of(context).copyWith(
+        scaffoldBackgroundColor: Colors.white,
+        bottomAppBarTheme: const BottomAppBarTheme(
+          color: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          elevation: 8,
+          shadowColor: Color(0x1A000000),
+        ),
+      ),
+      child: Scaffold(
+      backgroundColor: Colors.white,
+      extendBody: !hideBottomChrome,
       body: shell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: shell.currentIndex,
-        onDestinationSelected: (i) =>
-            shell.goBranch(i, initialLocation: i == shell.currentIndex),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore),
-            label: 'Explorar',
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: hideBottomChrome
+          ? null
+          : Container(
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white,
+        ),
+        child: SizedBox(
+          width: 76,
+          height: 76,
+          child: FloatingActionButton(
+            onPressed: () => context.push(Routes.createTrip),
+            backgroundColor: AppColors.terra,
+            foregroundColor: Colors.white,
+            elevation: 4,
+            shape: const CircleBorder(),
+            child: const Icon(Icons.add_rounded, size: 34),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.luggage_outlined),
-            selectedIcon: Icon(Icons.luggage),
-            label: 'Minhas',
+        ),
+      ),
+      bottomNavigationBar: hideBottomChrome
+          ? null
+          : Material(
+        color: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 8,
+        shadowColor: const Color(0x1A000000),
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+          height: 72,
+          child: Row(
+            children: [
+              Expanded(
+                child: _ShellNavItem(
+                  icon: Icons.explore_outlined,
+                  selectedIcon: Icons.explore,
+                  label: 'Explorar',
+                  isSelected: shell.currentIndex == 0,
+                  onTap: () => shell.goBranch(
+                    0,
+                    initialLocation: shell.currentIndex == 0,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: _ShellNavItem(
+                  icon: Icons.luggage_outlined,
+                  selectedIcon: Icons.luggage,
+                  label: 'Minhas',
+                  isSelected: shell.currentIndex == 1,
+                  onTap: () => shell.goBranch(
+                    1,
+                    initialLocation: shell.currentIndex == 1,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 72),
+              Expanded(
+                child: _ShellNavItem(
+                  icon: Icons.notifications_outlined,
+                  selectedIcon: Icons.notifications,
+                  label: 'Avisos',
+                  isSelected: shell.currentIndex == 2,
+                  onTap: () => shell.goBranch(
+                    2,
+                    initialLocation: shell.currentIndex == 2,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: _ShellNavItem(
+                  icon: Icons.person_outline,
+                  selectedIcon: Icons.person,
+                  label: 'Perfil',
+                  isSelected: shell.currentIndex == 3,
+                  onTap: () => shell.goBranch(
+                    3,
+                    initialLocation: shell.currentIndex == 3,
+                  ),
+                ),
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.notifications_outlined),
-            selectedIcon: Icon(Icons.notifications),
-            label: 'Avisos',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Perfil',
+        ),
+        ),
+      ),
+      ),
+    );
+  }
+}
+
+class _ShellNavItem extends StatelessWidget {
+  const _ShellNavItem({
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        isSelected ? AppColors.forest : AppColors.barkMuted;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(isSelected ? selectedIcon : icon, color: color),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: color,
+            ),
           ),
         ],
       ),

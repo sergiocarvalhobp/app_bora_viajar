@@ -155,17 +155,17 @@ class _HeroBackground extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (assetPath != null)
-          Image.asset(
-            assetPath,
+        Image.asset(
+          assetPath,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Image.asset(
+            defaultDestinationAsset,
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => _fallbackBackground(),
-          )
-        else
-          _fallbackBackground(),
+          ),
+        ),
 
-        if (assetPath != null)
-          Container(color: Colors.black.withOpacity(0.22)),
+        Container(color: Colors.black.withOpacity(0.22)),
 
         // Overlay escuro no fundo para legibilidade do título
         Positioned(

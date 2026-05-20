@@ -153,7 +153,11 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
         backgroundColor: AppColors.forest,
         foregroundColor: Colors.white,
         title: const Text('Criar viagem',
-            style: TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 20)),
+            style: TextStyle(
+              fontFamily: 'DMSerifDisplay',
+              fontSize: 20,
+              color: Colors.white,
+            )),
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
           onPressed: () => context.pop(),

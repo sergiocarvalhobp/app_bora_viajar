@@ -1,9 +1,14 @@
 import 'package:flutter/foundation.dart';
 
+/// Imagem local genérica quando o destino não casa com nenhuma keyword.
+const String defaultDestinationAsset =
+    'assets/images/destinations/nordeste.webp';
+
 /// Resolve uma imagem local de destino com base em texto livre.
 ///
 /// Usa score por palavras-chave para escolher o asset mais parecido.
-String? resolveDestinationAsset({
+/// Se não houver match, retorna [defaultDestinationAsset].
+String resolveDestinationAsset({
   required String destino,
   String? estado,
   String? cidade,
@@ -13,7 +18,7 @@ String? resolveDestinationAsset({
       .whereType<String>()
       .join(' '));
 
-  if (source.isEmpty) return null;
+  if (source.isEmpty) return defaultDestinationAsset;
 
   String? bestAsset;
   var bestScore = 0;
@@ -50,7 +55,7 @@ String? resolveDestinationAsset({
     debugPrint('[DestinoImagem] "$destino" -> $bestAsset (score=$bestScore)');
   }
 
-  return bestScore > 0 ? bestAsset : null;
+  return bestScore > 0 ? bestAsset! : defaultDestinationAsset;
 }
 
 String _normalize(String input) {

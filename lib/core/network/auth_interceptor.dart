@@ -56,11 +56,9 @@ class AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    // Sessão expirada ou inválida — apaga o token local para forçar re-login
-    final code = err.response?.statusCode;
-    if (code == 401 || code == 403) {
+    // Só 401 = sessão inválida. 403 em PATCH com foto grande é often nginx/WAF — não apagar token.
+    if (err.response?.statusCode == 401) {
       _sessionStorage.deleteToken();
-      // Não bloqueia a propagação do erro — a UI decide o que mostrar
     }
     handler.next(err);
   }

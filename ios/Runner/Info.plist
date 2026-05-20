@@ -66,6 +66,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Precisamos da câmera para você tirar a foto do perfil.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Precisamos da galeria para você escolher a foto do perfil.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

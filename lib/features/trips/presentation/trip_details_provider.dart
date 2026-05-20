@@ -5,6 +5,7 @@ import '../../auth/presentation/auth_provider.dart';
 import '../data/trips_repository.dart';
 import '../domain/trip_model.dart';
 import '../domain/participant_model.dart';
+import 'trips_provider.dart';
 
 part 'trip_details_provider.g.dart';
 
@@ -39,6 +40,7 @@ class TripParticipationNotifier extends _$TripParticipationNotifier {
       // Invalida detalhes e participantes para recarregar
       ref.invalidate(tripDetailsProvider(tripId));
       ref.invalidate(tripParticipantsProvider(tripId));
+      ref.invalidate(tripsSearchProvider);
     } catch (e, st) {
       state = AsyncError(e, st);
     }
@@ -51,6 +53,7 @@ class TripParticipationNotifier extends _$TripParticipationNotifier {
       state = const AsyncData(null);
       ref.invalidate(tripDetailsProvider(tripId));
       ref.invalidate(tripParticipantsProvider(tripId));
+      ref.invalidate(tripsSearchProvider);
     } catch (e, st) {
       state = AsyncError(e, st);
     }

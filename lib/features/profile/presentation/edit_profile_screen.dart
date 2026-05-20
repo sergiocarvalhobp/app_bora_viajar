@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,8 +9,10 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/app_constants.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/errors/app_exception.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/ui/avatar_image_provider.dart';
 import '../../auth/domain/user_model.dart';
 import '../../auth/presentation/auth_provider.dart';
@@ -20,15 +23,15 @@ part 'edit_profile_screen.g.dart';
 
 class EditProfileForm {
   const EditProfileForm({
-    this.name        = '',
-    this.bio         = '',
-    this.instagram   = '',
+    this.name = '',
+    this.bio = '',
+    this.instagram = '',
     this.estado,
-    this.cidade      = '',
+    this.cidade = '',
     this.avatarFile,
     this.isSubmitting = false,
     this.error,
-    this.success      = false,
+    this.success = false,
   });
 
   final String name;
@@ -42,54 +45,61 @@ class EditProfileForm {
   final bool success;
 
   EditProfileForm copyWith({
-    String? name, String? bio, String? instagram,
-    String? estado, String? cidade, File? avatarFile,
+    String? name,
+    String? bio,
+    String? instagram,
+    String? estado,
+    String? cidade,
+    File? avatarFile,
     bool clearAvatar = false,
-    bool? isSubmitting, String? error,
-    bool clearError = false, bool? success,
-  }) => EditProfileForm(
-    name:         name         ?? this.name,
-    bio:          bio          ?? this.bio,
-    instagram:    instagram    ?? this.instagram,
-    estado:       estado       ?? this.estado,
-    cidade:       cidade       ?? this.cidade,
-    avatarFile:   clearAvatar  ? null : avatarFile ?? this.avatarFile,
-    isSubmitting: isSubmitting ?? this.isSubmitting,
-    error:        clearError   ? null : error ?? this.error,
-    success:      success      ?? this.success,
-  );
+    bool? isSubmitting,
+    String? error,
+    bool clearError = false,
+    bool? success,
+  }) =>
+      EditProfileForm(
+        name: name ?? this.name,
+        bio: bio ?? this.bio,
+        instagram: instagram ?? this.instagram,
+        estado: estado ?? this.estado,
+        cidade: cidade ?? this.cidade,
+        avatarFile: clearAvatar ? null : avatarFile ?? this.avatarFile,
+        isSubmitting: isSubmitting ?? this.isSubmitting,
+        error: clearError ? null : error ?? this.error,
+        success: success ?? this.success,
+      );
 }
 
 @riverpod
 class EditProfileNotifier extends _$EditProfileNotifier {
   @override
   EditProfileForm build() {
-    // Pré-preenche com dados do usuário logado
-    final user = ref.watch(currentUserProvider);
+    // read (não watch): evita reset do formulário quando applyUserProfile atualiza o auth.
+    final user = ref.read(currentUserProvider);
     if (user == null) return const EditProfileForm();
     return EditProfileForm(
-      name:      user.name,
-      bio:       user.bio ?? '',
+      name: user.name,
+      bio: user.bio ?? '',
       instagram: user.instagram ?? '',
-      estado:    user.estado,
-      cidade:    user.cidade ?? '',
+      estado: user.estado,
+      cidade: user.cidade ?? '',
     );
   }
 
-  void setName(String v)      => state = state.copyWith(name: v);
-  void setBio(String v)       => state = state.copyWith(bio: v);
+  void setName(String v) => state = state.copyWith(name: v);
+  void setBio(String v) => state = state.copyWith(bio: v);
   void setInstagram(String v) => state = state.copyWith(instagram: v);
-  void setEstado(String? v)   => state = state.copyWith(estado: v);
-  void setCidade(String v)    => state = state.copyWith(cidade: v);
-  void setAvatarFile(File f)  => state = state.copyWith(avatarFile: f);
+  void setEstado(String? v) => state = state.copyWith(estado: v);
+  void setCidade(String v) => state = state.copyWith(cidade: v);
+  void setAvatarFile(File f) => state = state.copyWith(avatarFile: f);
 
-  Future<void> pickAvatar() async {
+  Future<void> pickAvatar(ImageSource source) async {
     final picker = ImagePicker();
     final img = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 800,
-      maxHeight: 800,
-      imageQuality: 85,
+      source: source,
+      maxWidth: 480,
+      maxHeight: 480,
+      imageQuality: 65,
     );
     if (img != null) setAvatarFile(File(img.path));
   }
@@ -100,31 +110,57 @@ class EditProfileNotifier extends _$EditProfileNotifier {
       return;
     }
     state = state.copyWith(isSubmitting: true, clearError: true);
+    String? avatarWarning;
     try {
       final dio = ref.read(apiClientProvider);
-      final avatarPayload = state.avatarFile != null
-          ? _fileToDataUrl(state.avatarFile!)
-          : null;
-      await dio.patch(
-        '${AppConstants.restApiPrefix}/profile/me',
-        data: {
-          'name': state.name.trim(),
-          'bio': state.bio.trim().isEmpty ? null : state.bio.trim(),
-          'instagram': state.instagram.trim().isEmpty
-              ? null
-              : state.instagram.trim(),
-          'estadoResidencia': state.estado,
-          'cidadeResidencia': state.cidade.trim().isEmpty
-              ? null
-              : state.cidade.trim(),
-          if (avatarPayload != null) 'avatarUrl': avatarPayload,
-        },
+      String? avatarPayload;
+      if (state.avatarFile != null) {
+        avatarPayload = _fileToDataUrl(state.avatarFile!);
+      }
+
+      var response =
+          await _patchProfile(dio, form: state, avatarUrl: avatarPayload);
+      var status = response.statusCode ?? 0;
+
+      // Dio não lança em 403/413 (validateStatus < 500) — tratar pelo statusCode.
+      if (avatarPayload != null && (status == 403 || status == 413)) {
+        response = await _patchProfile(dio, form: state);
+        status = response.statusCode ?? 0;
+        avatarWarning =
+            'Nome e dados salvos, mas a foto não foi aceita pelo servidor. '
+            'Tente uma imagem menor.';
+        avatarPayload = null;
+      }
+
+      if (status >= 400) {
+        throw ErrorHandler.handle(
+          DioException(
+            requestOptions: response.requestOptions,
+            response: response,
+            type: DioExceptionType.badResponse,
+          ),
+        );
+      }
+
+      _applyProfileResponse(
+        ref,
+        response,
+        form: state,
+        avatarUrl: avatarPayload,
       );
-      await ref.read(authNotifierProvider.notifier).refreshUser();
-      state = state.copyWith(isSubmitting: false, success: true);
+
+      state = state.copyWith(
+        isSubmitting: false,
+        success: true,
+        clearError: true,
+      );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Perfil atualizado!')),
+          SnackBar(
+            content: Text(
+              avatarWarning ?? 'Perfil atualizado!',
+            ),
+          ),
         );
         context.pop();
       }
@@ -136,6 +172,8 @@ class EditProfileNotifier extends _$EditProfileNotifier {
     }
   }
 
+  static const _maxAvatarBase64Chars = 320000;
+
   String _fileToDataUrl(File file) {
     final bytes = file.readAsBytesSync();
     final b64 = base64Encode(bytes);
@@ -145,7 +183,71 @@ class EditProfileNotifier extends _$EditProfileNotifier {
         : lower.endsWith('.webp')
             ? 'image/webp'
             : 'image/jpeg';
-    return 'data:$mime;base64,$b64';
+    final dataUrl = 'data:$mime;base64,$b64';
+    if (dataUrl.length > _maxAvatarBase64Chars) {
+      throw const ValidationException(
+        'Foto muito grande. Escolha outra imagem ou tire uma foto mais próxima.',
+      );
+    }
+    return dataUrl;
+  }
+
+  Future<Response<dynamic>> _patchProfile(
+    Dio dio, {
+    required EditProfileForm form,
+    String? avatarUrl,
+  }) {
+    return dio.patch(
+      '${AppConstants.restApiPrefix}/profile/me',
+      data: {
+        'name': form.name.trim(),
+        'bio': form.bio.trim().isEmpty ? null : form.bio.trim(),
+        'instagram':
+            form.instagram.trim().isEmpty ? null : form.instagram.trim(),
+        'estadoResidencia': form.estado,
+        'cidadeResidencia':
+            form.cidade.trim().isEmpty ? null : form.cidade.trim(),
+        if (avatarUrl != null) 'avatarUrl': avatarUrl,
+      },
+    );
+  }
+
+  void _applyProfileResponse(
+    Ref ref,
+    Response<dynamic> response, {
+    required EditProfileForm form,
+    String? avatarUrl,
+  }) {
+    final auth = ref.read(authNotifierProvider.notifier);
+    final current = ref.read(currentUserProvider);
+
+    if (response.data is Map) {
+      try {
+        auth.applyUserProfile(
+          UserModel.fromJson(
+            Map<String, dynamic>.from(response.data as Map),
+          ),
+        );
+        return;
+      } catch (_) {
+        // Resposta 200 com JSON inesperado — usa merge local abaixo.
+      }
+    }
+
+    if (current != null) {
+      auth.applyUserProfile(
+        current.copyWith(
+          name: form.name.trim(),
+          bio: form.bio.trim().isEmpty ? null : form.bio.trim(),
+          instagram: form.instagram.trim().isEmpty
+              ? null
+              : form.instagram.trim(),
+          estado: form.estado,
+          cidade: form.cidade.trim().isEmpty ? null : form.cidade.trim(),
+          foto: avatarUrl ?? current.foto,
+        ),
+      );
+    }
   }
 }
 
@@ -167,9 +269,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   void initState() {
     super.initState();
     final form = ref.read(editProfileNotifierProvider);
-    _nameCtrl   = TextEditingController(text: form.name);
-    _bioCtrl    = TextEditingController(text: form.bio);
-    _igCtrl     = TextEditingController(text: form.instagram);
+    _nameCtrl = TextEditingController(text: form.name);
+    _bioCtrl = TextEditingController(text: form.bio);
+    _igCtrl = TextEditingController(text: form.instagram);
     _cidadeCtrl = TextEditingController(text: form.cidade);
   }
 
@@ -182,63 +284,100 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   }
 
   static const _estados = [
-    'AC','AL','AM','AP','BA','CE','DF','ES','GO',
-    'MA','MG','MS','MT','PA','PB','PE','PI','PR',
-    'RJ','RN','RO','RR','RS','SC','SE','SP','TO',
+    'AC',
+    'AL',
+    'AM',
+    'AP',
+    'BA',
+    'CE',
+    'DF',
+    'ES',
+    'GO',
+    'MA',
+    'MG',
+    'MS',
+    'MT',
+    'PA',
+    'PB',
+    'PE',
+    'PI',
+    'PR',
+    'RJ',
+    'RN',
+    'RO',
+    'RR',
+    'RS',
+    'SC',
+    'SE',
+    'SP',
+    'TO',
   ];
 
   @override
   Widget build(BuildContext context) {
-    final form   = ref.watch(editProfileNotifierProvider);
-    final notif  = ref.read(editProfileNotifierProvider.notifier);
-    final user   = ref.watch(currentUserProvider);
-    final tt     = Theme.of(context).textTheme;
+    final form = ref.watch(editProfileNotifierProvider);
+    final notif = ref.read(editProfileNotifierProvider.notifier);
+    final user = ref.watch(currentUserProvider);
 
-    return Scaffold(
+    // Tema claro fixo — evita inputs/labels escuros com ThemeMode.system em dark.
+    return Theme(
+      data: AppTheme.light(),
+      child: Scaffold(
       backgroundColor: AppColors.cream,
       appBar: AppBar(
         backgroundColor: AppColors.forest,
         foregroundColor: Colors.white,
         title: const Text('Editar perfil',
-            style: TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 20)),
+            style: TextStyle(
+              fontFamily: 'DMSerifDisplay',
+              fontSize: 20,
+              color: Colors.white,
+            )),
         elevation: 0,
-        actions: [
-          TextButton(
-            onPressed: form.isSubmitting ? null : () => notif.submit(context),
-            child: Text(
-              form.isSubmitting ? 'Salvando...' : 'Salvar',
-              style: const TextStyle(
-                  color: Colors.white, fontFamily: 'Nunito',
-                  fontWeight: FontWeight.w700, fontSize: 15),
-            ),
-          ),
-        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-
           // ── Avatar ────────────────────────────────────────────────────
           Center(
-            child: Stack(
+            child: Column(
               children: [
-                _AvatarPreview(
-                  user:       user,
-                  localFile:  form.avatarFile,
-                ),
-                Positioned(
-                  bottom: 0, right: 0,
-                  child: GestureDetector(
-                    onTap: notif.pickAvatar,
-                    child: Container(
-                      width: 34, height: 34,
-                      decoration: const BoxDecoration(
-                        color: AppColors.terra,
-                        shape: BoxShape.circle,
+                GestureDetector(
+                  onTap: () => _showAvatarSourceSheet(context, notif),
+                  child: Stack(
+                    children: [
+                      _AvatarPreview(
+                        user: user,
+                        localFile: form.avatarFile,
                       ),
-                      child: const Icon(Icons.camera_alt_rounded,
-                          color: Colors.white, size: 18),
-                    ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: const BoxDecoration(
+                            color: AppColors.terra,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _avatarHint(user?.foto, form.avatarFile),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 13,
+                    color: AppColors.barkMuted,
                   ),
                 ),
               ],
@@ -250,7 +389,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           // ── Nome ──────────────────────────────────────────────────────
           const _Label('Nome *'),
           const SizedBox(height: 8),
-          _Field(controller: _nameCtrl, hint: 'Seu nome completo',
+          _Field(
+              controller: _nameCtrl,
+              hint: 'Seu nome completo',
               onChanged: notif.setName),
 
           const SizedBox(height: 20),
@@ -258,18 +399,29 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           // ── Bio ───────────────────────────────────────────────────────
           const _Label('Bio'),
           const SizedBox(height: 4),
-          Text('Conte um pouco sobre você e suas preferências de viagem.',
-              style: tt.bodySmall?.copyWith(color: AppColors.barkMuted)),
+          Text(
+            'Conte um pouco sobre você e suas preferências de viagem.',
+            style: const TextStyle(
+              fontFamily: 'Nunito',
+              fontSize: 13,
+              height: 1.4,
+              color: AppColors.barkMuted,
+            ),
+          ),
           const SizedBox(height: 8),
-          _Field(controller: _bioCtrl, hint: 'Ex: Adoro trilhas e gastronomia...',
-              onChanged: notif.setBio, maxLines: 3),
+          _Field(
+              controller: _bioCtrl,
+              hint: 'Ex: Adoro trilhas e gastronomia...',
+              onChanged: notif.setBio,
+              maxLines: 3),
 
           const SizedBox(height: 20),
 
           // ── Instagram ─────────────────────────────────────────────────
           const _Label('Instagram'),
           const SizedBox(height: 8),
-          _Field(controller: _igCtrl,
+          _Field(
+              controller: _igCtrl,
               hint: '@seu_usuario',
               prefix: const Icon(Icons.alternate_email_rounded,
                   size: 18, color: AppColors.barkMuted),
@@ -294,21 +446,26 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: form.estado,
-                    hint: const Text('UF', style: TextStyle(
-                        fontFamily: 'Nunito', fontSize: 14,
-                        color: AppColors.barkMuted)),
+                    hint: const Text('UF',
+                        style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontSize: 14,
+                            color: AppColors.barkMuted)),
                     isExpanded: true,
                     icon: const Icon(Icons.expand_more_rounded,
                         color: AppColors.barkMuted, size: 18),
-                    style: const TextStyle(fontFamily: 'Nunito',
-                        fontSize: 14, color: AppColors.bark),
+                    style: const TextStyle(
+                        fontFamily: 'Nunito',
+                        fontSize: 14,
+                        color: AppColors.bark),
                     onChanged: notif.setEstado,
                     items: [
-                      const DropdownMenuItem(value: null,
-                          child: Text('–', style: TextStyle(
-                              color: AppColors.barkMuted))),
-                      ..._estados.map((uf) =>
-                          DropdownMenuItem(value: uf, child: Text(uf))),
+                      const DropdownMenuItem(
+                          value: null,
+                          child: Text('–',
+                              style: TextStyle(color: AppColors.barkMuted))),
+                      ..._estados.map(
+                          (uf) => DropdownMenuItem(value: uf, child: Text(uf))),
                     ],
                   ),
                 ),
@@ -335,8 +492,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 border: Border.all(color: const Color(0xFFFCA5A5)),
               ),
               child: Text(form.error!,
-                  style: const TextStyle(fontFamily: 'Nunito',
-                      fontSize: 13, color: AppColors.error)),
+                  style: const TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 13,
+                      color: AppColors.error)),
             ),
             const SizedBox(height: 16),
           ],
@@ -345,16 +504,103 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             height: 54,
             child: ElevatedButton(
               onPressed: form.isSubmitting ? null : () => notif.submit(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.forest,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: AppColors.sand,
+                disabledForegroundColor: AppColors.barkMuted,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
               child: form.isSubmitting
-                  ? const SizedBox(width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2,
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2,
                           valueColor: AlwaysStoppedAnimation(Colors.white)))
-                  : const Text('Salvar alterações'),
+                  : const Text(
+                      'Salvar alterações',
+                      style: TextStyle(
+                        fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
             ),
           ),
 
-          const SizedBox(height: 32),
+          const SizedBox(height: 90),
         ],
+      ),
+      ),
+    );
+  }
+
+  String _avatarHint(String? fotoRemota, File? localFile) {
+    if (localFile != null) return 'Foto selecionada. Toque para trocar.';
+    final remota = fotoRemota?.trim();
+    if (remota == null || remota.isEmpty) {
+      return 'Toque para tirar foto ou escolher da galeria';
+    }
+    return 'Toque para trocar a foto (câmera ou galeria)';
+  }
+
+  void _showAvatarSourceSheet(
+    BuildContext context,
+    EditProfileNotifier notif,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.cream,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.sand,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Foto do perfil',
+                style: Theme.of(ctx).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined,
+                    color: AppColors.forest),
+                title: const Text('Escolher da galeria',
+                    style: TextStyle(fontFamily: 'Nunito')),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  notif.pickAvatar(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined,
+                    color: AppColors.forest),
+                title: const Text('Tirar foto',
+                    style: TextStyle(fontFamily: 'Nunito')),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  notif.pickAvatar(ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -364,22 +610,86 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
 class _AvatarPreview extends StatelessWidget {
   const _AvatarPreview({required this.user, required this.localFile});
+
+  static const double _radius = 52;
+  static const double _size = _radius * 2;
+
   final UserModel? user;
   final File? localFile;
 
   @override
   Widget build(BuildContext context) {
+    if (localFile != null) {
+      return CircleAvatar(
+        radius: _radius,
+        backgroundColor: AppColors.sand,
+        backgroundImage: FileImage(localFile!),
+      );
+    }
+
+    final provider = avatarImageProvider(user?.foto);
+    if (provider == null) return _initialsAvatar();
+
+    return ClipOval(
+      child: SizedBox(
+        width: _size,
+        height: _size,
+        child: Image(
+          image: provider,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _initialsAvatar(fillParent: true),
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return _initialsAvatar(fillParent: true, showLoader: true);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _initialsAvatar({bool fillParent = false, bool showLoader = false}) {
+    final initials = Text(
+      user?.initials ?? '?',
+      style: const TextStyle(
+        fontFamily: 'Nunito',
+        fontSize: 28,
+        fontWeight: FontWeight.w700,
+        color: AppColors.bark,
+      ),
+    );
+
+    if (fillParent) {
+      return Container(
+        width: _size,
+        height: _size,
+        color: AppColors.sand,
+        alignment: Alignment.center,
+        child: showLoader
+            ? const SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.forest,
+                ),
+              )
+            : initials,
+      );
+    }
+
     return CircleAvatar(
-      radius: 52,
+      radius: _radius,
       backgroundColor: AppColors.sand,
-      backgroundImage: localFile != null
-          ? FileImage(localFile!) as ImageProvider
-          : avatarImageProvider(user?.foto),
-      child: localFile == null && user?.foto == null
-          ? Text(user?.initials ?? '?',
-              style: const TextStyle(fontFamily: 'Nunito', fontSize: 28,
-                  fontWeight: FontWeight.w700, color: AppColors.bark))
-          : null,
+      child: showLoader
+          ? const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.forest,
+              ),
+            )
+          : initials,
     );
   }
 }
@@ -388,8 +698,15 @@ class _Label extends StatelessWidget {
   const _Label(this.text);
   final String text;
   @override
-  Widget build(BuildContext context) => Text(text,
-      style: Theme.of(context).textTheme.titleSmall);
+  Widget build(BuildContext context) => Text(
+        text,
+        style: const TextStyle(
+          fontFamily: 'Nunito',
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: AppColors.bark,
+        ),
+      );
 }
 
 class _Field extends StatelessWidget {
@@ -408,19 +725,46 @@ class _Field extends StatelessWidget {
   final Widget? prefix;
   final TextCapitalization capitalization;
 
-  @override
-  Widget build(BuildContext context) => TextField(
-    controller: controller,
-    onChanged: onChanged,
-    maxLines: maxLines,
-    textCapitalization: capitalization,
-    style: const TextStyle(fontFamily: 'Nunito', fontSize: 14,
-        color: AppColors.bark),
-    decoration: InputDecoration(
+  static const _radius = 14.0;
+
+  static InputDecoration _decoration(String hint, {Widget? prefix}) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(_radius),
+      borderSide: const BorderSide(color: AppColors.sand),
+    );
+    return InputDecoration(
       hintText: hint,
       prefixIcon: prefix,
-      hintStyle: const TextStyle(fontFamily: 'Nunito', fontSize: 14,
-          color: AppColors.barkMuted),
-    ),
-  );
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: border,
+      enabledBorder: border,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(_radius),
+        borderSide: const BorderSide(color: AppColors.forest, width: 2),
+      ),
+      hintStyle: const TextStyle(
+        fontFamily: 'Nunito',
+        fontSize: 14,
+        color: AppColors.barkMuted,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => TextField(
+        controller: controller,
+        onChanged: onChanged,
+        maxLines: maxLines,
+        textCapitalization: capitalization,
+        cursorColor: AppColors.forest,
+        style: const TextStyle(
+          fontFamily: 'Nunito',
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: AppColors.bark,
+        ),
+        decoration: _decoration(hint, prefix: prefix),
+      );
 }
