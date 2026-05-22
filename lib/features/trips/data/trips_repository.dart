@@ -11,6 +11,27 @@ import '../domain/trips_page.dart';
 
 part 'trips_repository.g.dart';
 
+/// Viagens do usuário (organizadas + participando), para Minhas viagens.
+class MinhasViagensResult {
+  const MinhasViagensResult({
+    required this.organizadas,
+    required this.participando,
+  });
+
+  final List<TripModel> organizadas;
+  final List<TripModel> participando;
+
+  List<TripModel> get todas {
+    final seen = <int>{};
+    final out = <TripModel>[];
+    for (final t in [...organizadas, ...participando]) {
+      if (seen.add(t.id)) out.add(t);
+    }
+    out.sort((a, b) => b.dataFim.compareTo(a.dataFim));
+    return out;
+  }
+}
+
 @riverpod
 TripsRepository tripsRepository(Ref ref) {
   return TripsRepository(dio: ref.watch(apiClientProvider));
@@ -42,6 +63,7 @@ class TripsRepository {
       final qp = <String, dynamic>{
         'offset': offset,
         'limit': limit,
+        'apenasAtivas': true,
       };
       final Response<dynamic> response;
       if (filters.isEmpty) {
@@ -86,15 +108,21 @@ class TripsRepository {
       total = (map['total'] as num?)?.toInt() ?? fetchedCount;
     }
 
-    var list = rawList
-        .map((e) => TripModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+    var list = <TripModel>[];
+    for (final e in rawList) {
+      try {
+        list.add(TripModel.fromJson(e as Map<String, dynamic>));
+      } catch (_) {
+        // ignora item malformado para não derrubar a lista inteira
+      }
+    }
     if (filters.tipo != null) {
       list = list.where((t) => t.tipo == filters.tipo).toList();
     }
     if (filters.apenasComVagas) {
       list = list.where((t) => t.temVagasDisponiveis).toList();
     }
+    list = list.where((t) => t.isValidForHome).toList();
     return TripsPage(
       items: list,
       fetchedCount: fetchedCount,
@@ -103,20 +131,35 @@ class TripsRepository {
     );
   }
 
-  Future<List<TripModel>> minhasViagens() async {
+  Future<MinhasViagensResult> minhasViagens() async {
     try {
       final response = await _dio.get('$_p/historico/me');
       final data = response.data as Map<String, dynamic>?;
-      if (data == null) return [];
+      if (data == null) {
+        return const MinhasViagensResult(organizadas: [], participando: []);
+      }
       final criadas = data['criadas'] as List<dynamic>? ?? [];
       final participando = data['participando'] as List<dynamic>? ?? [];
-      final seen = <int>{};
-      final out = <TripModel>[];
-      for (final e in [...criadas, ...participando]) {
-        final m = TripModel.fromJson(e as Map<String, dynamic>);
-        if (seen.add(m.id)) out.add(m);
+      List<TripModel> parseList(
+        List<dynamic> raw, {
+        String? defaultMyStatus,
+      }) {
+        final out = <TripModel>[];
+        for (final e in raw) {
+          try {
+            final map = Map<String, dynamic>.from(e as Map<String, dynamic>);
+            if (map['myStatus'] == null && defaultMyStatus != null) {
+              map['myStatus'] = defaultMyStatus;
+            }
+            out.add(TripModel.fromJson(map));
+          } catch (_) {}
+        }
+        return out;
       }
-      return out;
+      return MinhasViagensResult(
+        organizadas: parseList(criadas),
+        participando: parseList(participando, defaultMyStatus: 'interessado'),
+      );
     } catch (e) {
       throw ErrorHandler.handle(e);
     }
@@ -125,6 +168,7 @@ class TripsRepository {
   Future<TripModel> buscarPorId(int id) async {
     try {
       final response = await _dio.get('$_p/trips/$id');
+      _throwIfHttpError(response);
       return TripModel.fromJson(response.data as Map<String, dynamic>);
     } catch (e) {
       throw ErrorHandler.handle(e);
@@ -164,11 +208,20 @@ class TripsRepository {
   Future<List<ParticipantModel>> listarParticipantes(int viagemId) async {
     try {
       final response = await _dio.get('$_p/trips/$viagemId/details');
+      _throwIfHttpError(response);
       final data = response.data as Map<String, dynamic>?;
       final parts = data?['participants'] as List<dynamic>? ?? [];
-      return parts
-          .map((e) => ParticipantModel.fromJson(e as Map<String, dynamic>))
-          .toList();
+      final out = <ParticipantModel>[];
+      final seenUsers = <int>{};
+      for (final e in parts) {
+        try {
+          final p = ParticipantModel.fromJson(e as Map<String, dynamic>);
+          if (seenUsers.add(p.userId)) out.add(p);
+        } catch (_) {
+          // ignora participante malformado
+        }
+      }
+      return out;
     } catch (e) {
       throw ErrorHandler.handle(e);
     }
@@ -199,13 +252,54 @@ class TripsRepository {
     }
   }
 
+  /// Avalia quem criou a viagem (1–5) + testemunho opcional.
+  Future<int> avaliarOrganizador(
+    int tripId,
+    int stars, {
+    String? testemunho,
+  }) async {
+    try {
+      final body = {
+        'stars': stars,
+        if (testemunho != null && testemunho.trim().isNotEmpty)
+          'testemunho': testemunho.trim(),
+      };
+      // POST preferido; fallback PUT se proxy bloquear POST (403/404/405)
+      var response = await _dio.post(
+        '$_p/trips/$tripId/organizer-rating',
+        data: body,
+      );
+      final postCode = response.statusCode ?? 0;
+      if (postCode == 403 || postCode == 404 || postCode == 405) {
+        response = await _dio.put(
+          '$_p/trips/$tripId/organizer-rating',
+          data: body,
+        );
+      }
+      _throwIfHttpError(response);
+      final data = response.data as Map<String, dynamic>? ?? {};
+      return (data['myOrganizerRating'] as num?)?.toInt() ?? stars;
+    } catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
   Future<void> atualizarStatusParticipante(
       int _, int participanteId, String status) async {
     try {
-      await _dio.patch(
+      final body = {'status': status};
+      var response = await _dio.patch(
         '$_p/participantes/$participanteId/status',
-        data: {'status': status},
+        data: body,
       );
+      final patchCode = response.statusCode ?? 0;
+      if (patchCode == 403 || patchCode == 404 || patchCode == 405) {
+        response = await _dio.post(
+          '$_p/participantes/$participanteId/status',
+          data: body,
+        );
+      }
+      _throwIfHttpError(response);
     } catch (e) {
       throw ErrorHandler.handle(e);
     }

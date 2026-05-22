@@ -11,6 +11,13 @@ build/
 android/local.properties
 android/.gradle/
 android/app/google-services.json
+# Assinatura release — NUNCA commitar (senhas + keystore)
+android/key.properties
+**/*.jks
+**/*.keystore
+
+# Artefatos de release (envie o .aab pela Play Console, não pelo Git)
+*.aab
 
 # iOS
 ios/Pods/

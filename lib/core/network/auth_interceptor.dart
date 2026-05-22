@@ -56,8 +56,10 @@ class AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    // Só 401 = sessão inválida. 403 em PATCH com foto grande é often nginx/WAF — não apagar token.
-    if (err.response?.statusCode == 401) {
+    final status = err.response?.statusCode;
+    final path = err.requestOptions.uri.path;
+    // 401 ou 403 em viagens = sessão inválida na API (lista exige JWT em produção).
+    if (status == 401) {
       _sessionStorage.deleteToken();
     }
     handler.next(err);

@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/errors/error_handler.dart';
 import '../../auth/presentation/auth_provider.dart';
+import '../../trips/presentation/trip_details_provider.dart';
 import '../data/chat_repository.dart';
 import '../domain/message_model.dart';
 
@@ -115,11 +117,35 @@ class ChatNotifier extends _$ChatNotifier {
 
   // ── Envio com mensagem otimista ────────────────────────────────────────────
 
+  void clearSendError() {
+    if (state.sendError != null) {
+      state = state.copyWith(clearError: true);
+    }
+  }
+
   Future<void> enviar(String conteudo) async {
     final texto = conteudo.trim();
-    if (texto.isEmpty) return;
+    if (texto.isEmpty) {
+      clearSendError();
+      return;
+    }
 
+    final trip = ref.read(tripDetailsProvider(tripId)).valueOrNull;
     final user = ref.read(currentUserProvider);
+    if (trip != null && !trip.canAccessChat(user?.id)) {
+      state = state.copyWith(
+        sendError:
+            'O chat será liberado após o organizador confirmar sua participação.',
+      );
+      return;
+    }
+    if (trip?.isTripFinished == true) {
+      state = state.copyWith(
+        sendError: 'Esta viagem já encerrou. O chat está em modo de visualização.',
+      );
+      return;
+    }
+
     if (user == null) return;
 
     state = state.copyWith(isSending: true, clearError: true);
@@ -159,16 +185,24 @@ class ChatNotifier extends _$ChatNotifier {
         return m;
       }).toList();
 
+      final err = ErrorHandler.handle(e);
+      final msg = err.message.contains('encerrado') ||
+              err.message.contains('terminou')
+          ? err.message
+          : 'Não foi possível enviar a mensagem.';
       state = state.copyWith(
         messages:  msgs,
         isSending: false,
-        sendError: 'Não foi possível enviar a mensagem.',
+        sendError: msg,
       );
     }
   }
 
   /// Reenvia uma mensagem que falhou.
   Future<void> reenviar(OptimisticMessage msg) async {
+    final trip = ref.read(tripDetailsProvider(tripId)).valueOrNull;
+    if (trip?.isTripFinished == true) return;
+
     // Remove a falha da lista e tenta enviar de novo
     state = state.copyWith(
       messages: state.messages.where((m) => m.id != msg.id).toList(),

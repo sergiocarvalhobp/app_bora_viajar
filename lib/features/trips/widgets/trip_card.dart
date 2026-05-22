@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-
 import '../../../core/errors/app_exception.dart';
+import '../../../core/router/trip_navigation.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/ui/avatar_image_provider.dart';
+import '../../../core/ui/app_avatar.dart';
 import '../../../core/ui/destination_image_resolver.dart';
 import '../../auth/presentation/auth_provider.dart';
+import '../../profile/presentation/user_profile_preview_sheet.dart';
 import '../domain/trip_model.dart';
 import '../presentation/trip_details_provider.dart';
 
@@ -17,11 +17,14 @@ class TripCard extends ConsumerWidget {
     required this.trip,
     required this.onTap,
     this.showActions = false,
+    /// Lista "Participando" em Minhas viagens — garante UI de participante.
+    this.assumeParticipating = false,
   });
 
   final TripModel trip;
   final VoidCallback onTap;
   final bool showActions;
+  final bool assumeParticipating;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -153,22 +156,44 @@ class TripCard extends ConsumerWidget {
                   // Rodapé: líder + participantes
                   Row(
                     children: [
-                      if (trip.lider != null) ...[
-                        _LiderAvatar(lider: trip.lider!),
-                        const SizedBox(width: 8),
+                      if (trip.lider != null)
                         Expanded(
-                          child: Text(
-                            trip.lider!.name,
-                            style: tt.labelMedium?.copyWith(
-                              color: AppColors.bark,
-                              fontWeight: FontWeight.w600,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => showUserProfilePreviewSheet(
+                                context,
+                                ref,
+                                user: trip.lider!,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 2,
+                                ),
+                                child: Row(
+                                  children: [
+                                    _LiderAvatar(lider: trip.lider!),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        trip.lider!.name,
+                                        style: tt.labelMedium?.copyWith(
+                                          color: AppColors.bark,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
-                      const Spacer(),
+                        )
+                      else
+                        const Spacer(),
                       const Icon(Icons.people_outline,
                           size: 14, color: AppColors.barkMuted),
                       const SizedBox(width: 4),
@@ -188,7 +213,10 @@ class TripCard extends ConsumerWidget {
               ),
             ),
             if (showActions)
-              _TripCardActions(trip: trip),
+              _TripCardActions(
+                trip: trip,
+                assumeParticipating: assumeParticipating,
+              ),
           ],
         ),
       );
@@ -198,8 +226,13 @@ class TripCard extends ConsumerWidget {
 // ── Ações: chat + participar (home) ───────────────────────────────────────────
 
 class _TripCardActions extends ConsumerWidget {
-  const _TripCardActions({required this.trip});
+  const _TripCardActions({
+    required this.trip,
+    this.assumeParticipating = false,
+  });
+
   final TripModel trip;
+  final bool assumeParticipating;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -231,12 +264,23 @@ class _TripCardActions extends ConsumerWidget {
 
     final isLider = user?.id == trip.liderId;
     final isLoading = participation is AsyncLoading;
-    final canChat = isLider || trip.isParticipando;
-    final canParticipar =
-        !isLider && !trip.isParticipando && trip.temVagasDisponiveis;
-    final isLotado = !isLider && !trip.isParticipando && !trip.temVagasDisponiveis;
+    final isParticipating =
+        trip.isParticipando || (assumeParticipating && !isLider);
+    final canChat = trip.canAccessChat(user?.id);
+    final canParticipar = !isLider &&
+        !isParticipating &&
+        trip.temVagasDisponiveis &&
+        !trip.isTripFinished;
+    final isLotado = !isLider && !isParticipating && !trip.temVagasDisponiveis;
+    final canRateEnded = trip.isConfirmado &&
+        !isLider &&
+        trip.isTripEndedForReview;
 
-    if (!canChat && !canParticipar && !isLotado && !isLider) {
+    if (!canChat &&
+        !canParticipar &&
+        !isLotado &&
+        !isLider &&
+        !isParticipating) {
       return const SizedBox.shrink();
     }
 
@@ -254,7 +298,7 @@ class _TripCardActions extends ConsumerWidget {
               if (canChat) ...[
                 _CardChatButton(
                   tooltip: 'Abrir chat',
-                  onTap: () => context.push('/trips/${trip.id}/chat'),
+                  onTap: () => openTripChat(context, trip.id),
                 ),
                 const SizedBox(width: 10),
               ],
@@ -264,6 +308,16 @@ class _TripCardActions extends ConsumerWidget {
                     label: 'Você organiza',
                     icon: Icons.star_rounded,
                     variant: _CardActionVariant.muted,
+                  ),
+                )
+              else if (canRateEnded)
+                Expanded(
+                  child: _CardActionButton(
+                    label: 'Avaliar viagem',
+                    icon: Icons.star_outline_rounded,
+                    variant: _CardActionVariant.primary,
+                    isLoading: false,
+                    onTap: () => openTripDetails(context, trip.id),
                   ),
                 )
               else if (canParticipar)
@@ -276,7 +330,7 @@ class _TripCardActions extends ConsumerWidget {
                     onTap: isLoading ? null : () => notif.participar(),
                   ),
                 )
-              else if (trip.isParticipando)
+              else if (isParticipating)
                 Expanded(
                   child: _CardParticipatingBar(
                     confirmed: trip.myStatus == 'confirmado',
@@ -758,22 +812,11 @@ class _LiderAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foto = lider.foto as String?;
-    return CircleAvatar(
+    return AppAvatar(
+      foto: lider.foto as String?,
+      name: lider.name as String?,
+      initials: lider.initials as String?,
       radius: 14,
-      backgroundColor: AppColors.sand,
-      backgroundImage: avatarImageProvider(foto),
-      child: foto == null
-          ? Text(
-              lider.initials as String,
-              style: const TextStyle(
-                fontFamily: 'Nunito',
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: AppColors.bark,
-              ),
-            )
-          : null,
     );
   }
 }

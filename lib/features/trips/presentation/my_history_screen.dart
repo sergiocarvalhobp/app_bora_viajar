@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../core/router/trip_navigation.dart';
 import '../../../core/theme/app_colors.dart';
 import '../data/trips_repository.dart';
 import '../domain/trip_model.dart';
@@ -26,7 +27,7 @@ extension HistoryTabExt on HistoryTab {
 // ── Provider ───────────────────────────────────────────────────────────────────
 
 @riverpod
-Future<List<TripModel>> myTrips(Ref ref) async {
+Future<MinhasViagensResult> myTrips(Ref ref) async {
   final repo = ref.watch(tripsRepositoryProvider);
   return repo.minhasViagens();
 }
@@ -88,20 +89,24 @@ class _MyHistoryScreenState extends ConsumerState<MyHistoryScreen>
       body: tripsAsync.when(
         loading: () => _buildLoading(),
         error: (e, _) => _buildError(e.toString()),
-        data: (trips) => TabBarView(
+        data: (bundle) => TabBarView(
           controller: _tabController,
           children: [
             _TripsList(
-              trips: trips.where((t) => t.myStatus != null).toList(),
-              label: 'Você ainda não está participando de nenhuma viagem.',
+              trips: bundle.participando,
+              label: 'Você ainda não participou de nenhuma viagem.',
+              assumeParticipating: true,
+              onRefresh: () async => ref.invalidate(myTripsProvider),
             ),
             _TripsList(
-              trips: trips.where((t) => t.isLider == true).toList(),
-              label: 'Você ainda não criou nenhuma viagem.',
+              trips: bundle.organizadas,
+              label: 'Você ainda não organizou nenhuma viagem.',
+              onRefresh: () async => ref.invalidate(myTripsProvider),
             ),
             _TripsList(
-              trips: trips,
-              label: 'Nenhuma viagem encontrada.',
+              trips: bundle.todas,
+              label: 'Nenhuma viagem no seu histórico.',
+              onRefresh: () async => ref.invalidate(myTripsProvider),
             ),
           ],
         ),
@@ -160,9 +165,17 @@ class _MyHistoryScreenState extends ConsumerState<MyHistoryScreen>
 }
 
 class _TripsList extends StatelessWidget {
-  const _TripsList({required this.trips, required this.label});
+  const _TripsList({
+    required this.trips,
+    required this.label,
+    required this.onRefresh,
+    this.assumeParticipating = false,
+  });
+
   final List<TripModel> trips;
   final String label;
+  final Future<void> Function() onRefresh;
+  final bool assumeParticipating;
 
   @override
   Widget build(BuildContext context) {
@@ -184,7 +197,7 @@ class _TripsList extends StatelessWidget {
                       color: AppColors.barkMuted)),
               const SizedBox(height: 20),
               OutlinedButton.icon(
-                onPressed: () => GoRouter.of(context).push('/trips/create'),
+                onPressed: () => context.go('/create-trip'),
                 icon: const Icon(Icons.add_rounded, size: 16),
                 label: const Text('Criar viagem'),
               ),
@@ -196,7 +209,7 @@ class _TripsList extends StatelessWidget {
 
     return RefreshIndicator(
       color: AppColors.forest,
-      onRefresh: () async => GoRouter.of(context).refresh(),
+      onRefresh: onRefresh,
       child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         itemCount: trips.length,
@@ -204,15 +217,12 @@ class _TripsList extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 16),
           child: TripCard(
             trip: trips[i],
-            onTap: () => GoRouter.of(context).push('/trips/${trips[i].id}'),
+            showActions: true,
+            assumeParticipating: assumeParticipating,
+            onTap: () => openTripDetails(context, trips[i].id),
           ),
         ),
       ),
     );
   }
-}
-
-// Extensão helper para verificar se o usuário é líder
-extension TripModelHelper on TripModel {
-  bool? get isLider => myStatus == null ? true : null;
 }

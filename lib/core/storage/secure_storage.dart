@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -40,9 +42,30 @@ class SessionStorage {
   const SessionStorage(this._storage);
   final FlutterSecureStorage _storage;
 
-  /// Lê o JWT de sessão. Retorna null se não houver sessão salva.
+  /// Lê o JWT de sessão. Retorna null se não houver sessão ou dados corrompidos.
+  ///
+  /// No Android, reinstalação ou mudança de Keystore pode gerar
+  /// [PlatformException] (BadPaddingException) — nesse caso apagamos a chave.
   Future<String?> readToken() async {
-    return _storage.read(key: AppConstants.sessionKey);
+    try {
+      return await _storage.read(key: AppConstants.sessionKey);
+    } on PlatformException catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          '[SessionStorage] leitura falhou (${e.code}): ${e.message} — limpando token',
+        );
+      }
+      await _purgeSessionKey();
+      return null;
+    }
+  }
+
+  Future<void> _purgeSessionKey() async {
+    try {
+      await _storage.delete(key: AppConstants.sessionKey);
+    } catch (_) {
+      // best-effort
+    }
   }
 
   /// Persiste o JWT de sessão recebido após o login.

@@ -32,15 +32,18 @@ class TripParticipationNotifier extends _$TripParticipationNotifier {
   @override
   AsyncValue<void> build(int tripId) => const AsyncData(null);
 
+  void _refreshTripAndLists() {
+    ref.invalidate(tripDetailsProvider(tripId));
+    ref.invalidate(tripParticipantsProvider(tripId));
+    ref.invalidate(tripsSearchProvider);
+  }
+
   Future<void> participar() async {
     state = const AsyncLoading();
     try {
       await ref.read(tripsRepositoryProvider).participar(tripId);
       state = const AsyncData(null);
-      // Invalida detalhes e participantes para recarregar
-      ref.invalidate(tripDetailsProvider(tripId));
-      ref.invalidate(tripParticipantsProvider(tripId));
-      ref.invalidate(tripsSearchProvider);
+      _refreshTripAndLists();
     } catch (e, st) {
       state = AsyncError(e, st);
     }
@@ -51,9 +54,7 @@ class TripParticipationNotifier extends _$TripParticipationNotifier {
     try {
       await ref.read(tripsRepositoryProvider).cancelarParticipacao(tripId);
       state = const AsyncData(null);
-      ref.invalidate(tripDetailsProvider(tripId));
-      ref.invalidate(tripParticipantsProvider(tripId));
-      ref.invalidate(tripsSearchProvider);
+      _refreshTripAndLists();
     } catch (e, st) {
       state = AsyncError(e, st);
     }
@@ -65,9 +66,33 @@ class TripParticipationNotifier extends _$TripParticipationNotifier {
       await ref.read(tripsRepositoryProvider)
           .atualizarStatusParticipante(tripId, participanteId, 'confirmado');
       state = const AsyncData(null);
-      ref.invalidate(tripParticipantsProvider(tripId));
+      _refreshTripAndLists();
     } catch (e, st) {
       state = AsyncError(e, st);
+    }
+  }
+}
+
+// ── Avaliação de quem criou a viagem (após fim; participante confirmado) ───
+
+@riverpod
+class OrganizerRatingNotifier extends _$OrganizerRatingNotifier {
+  @override
+  AsyncValue<void> build(int tripId) => const AsyncData(null);
+
+  Future<void> submit(int stars, {String? testemunho}) async {
+    state = const AsyncLoading();
+    try {
+      await ref.read(tripsRepositoryProvider).avaliarOrganizador(
+        tripId,
+        stars,
+        testemunho: testemunho,
+      );
+      state = const AsyncData(null);
+      ref.invalidate(tripDetailsProvider(tripId));
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      rethrow;
     }
   }
 }

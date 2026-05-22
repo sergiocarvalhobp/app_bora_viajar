@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/router/trip_navigation.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_notch_shell.dart';
 import '../domain/trip_model.dart';
 import '../data/trips_repository.dart';
 
@@ -108,7 +109,7 @@ class CreateTripNotifier extends _$CreateTripNotifier {
         dataFim:    state.dataFim!,
         maxVagas:   state.maxVagas,
       );
-      if (context.mounted) context.go('/trips/${trip.id}');
+      if (context.mounted) openTripDetails(context, trip.id);
     } catch (e) {
       state = state.copyWith(
           isSubmitting: false, error: 'Não foi possível criar a viagem.');
@@ -152,21 +153,21 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.forest,
         foregroundColor: Colors.white,
+        automaticallyImplyLeading: false,
         title: const Text('Criar viagem',
             style: TextStyle(
               fontFamily: 'DMSerifDisplay',
               fontSize: 20,
               color: Colors.white,
             )),
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: () => context.pop(),
-        ),
         elevation: 0,
       ),
-      body: ListView(
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView(
         controller: _scroll,
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
         children: [
 
           // ── Tipo ─────────────────────────────────────────────────────
@@ -295,31 +296,60 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
             ),
             const SizedBox(height: 16),
           ],
-
-          // Botão
-          SizedBox(
-            height: 54,
-            child: ElevatedButton.icon(
-              onPressed: form.isValid && !form.isSubmitting
-                  ? () => notif.submit(context)
-                  : null,
-              icon: form.isSubmitting
-                  ? const SizedBox(width: 18, height: 18,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(Colors.white)))
-                  : const Icon(Icons.rocket_launch_outlined, size: 18),
-              label: Text(form.isSubmitting ? 'Criando...' : 'Publicar viagem'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.terra,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-              ),
+        ],
             ),
           ),
 
-          const SizedBox(height: 32),
+          // Botão fixo acima do menu inferior
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.fromLTRB(
+              20,
+              12,
+              20,
+              12 + AppNotchShell.bottomBarClearance(context),
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.cream,
+              border: const Border(top: BorderSide(color: AppColors.sand)),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.bark.withOpacity(0.06),
+                  blurRadius: 12,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
+            child: SizedBox(
+              height: 54,
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: form.isValid && !form.isSubmitting
+                    ? () => notif.submit(context)
+                    : null,
+                icon: form.isSubmitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation(Colors.white),
+                        ),
+                      )
+                    : const Icon(Icons.rocket_launch_outlined, size: 18),
+                label: Text(
+                    form.isSubmitting ? 'Criando...' : 'Publicar viagem'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.terra,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

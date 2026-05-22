@@ -1,4 +1,4 @@
-package com.example.boraviajar_app
+package br.com.boraviajar
 
 import android.content.Intent
 import android.util.Log

@@ -76,7 +76,9 @@ class TripsSearch extends _$TripsSearch {
       return const TripsSearchState();
     }
 
-    final filters = ref.watch(tripsFiltersNotifierProvider);
+    final filters = ref.watch(tripsFiltersNotifierProvider).copyWith(
+      apenasAtivas: true,
+    );
     final repo = ref.watch(tripsRepositoryProvider);
 
     if (filters.query != null && filters.query!.length == 1) {
@@ -89,8 +91,10 @@ class TripsSearch extends _$TripsSearch {
       limit: _initialLimit,
     );
 
+    final active = page.items.where((t) => t.isValidForHome).toList();
+
     return TripsSearchState(
-      trips: page.items,
+      trips: active,
       serverOffset: page.fetchedCount,
       hasMore: page.hasMore,
     );
@@ -107,7 +111,9 @@ class TripsSearch extends _$TripsSearch {
     state = AsyncData(current.copyWith(isLoadingMore: true));
 
     try {
-      final filters = ref.read(tripsFiltersNotifierProvider);
+      final filters = ref.read(tripsFiltersNotifierProvider).copyWith(
+        apenasAtivas: true,
+      );
       final repo = ref.read(tripsRepositoryProvider);
       final page = await repo.listarPaginado(
         filters: filters,
@@ -115,9 +121,10 @@ class TripsSearch extends _$TripsSearch {
         limit: _loadMoreLimit,
       );
 
+      final more = page.items.where((t) => t.isValidForHome).toList();
       state = AsyncData(
         current.copyWith(
-          trips: [...current.trips, ...page.items],
+          trips: [...current.trips, ...more],
           serverOffset: current.serverOffset + page.fetchedCount,
           hasMore: page.hasMore,
           isLoadingMore: false,

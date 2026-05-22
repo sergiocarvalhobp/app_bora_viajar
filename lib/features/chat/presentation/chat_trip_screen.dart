@@ -1,11 +1,12 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/router/trip_navigation.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/app_avatar.dart';
 import '../../auth/domain/user_model.dart';
 import '../../auth/presentation/auth_provider.dart';
 import '../../trips/domain/trip_model.dart';
@@ -58,7 +59,8 @@ class _ChatTripScreenState extends ConsumerState<ChatTripScreen> {
     }
   }
 
-  Future<void> _send() async {
+  Future<void> _send({required bool chatReadOnly}) async {
+    if (chatReadOnly) return;
     final texto = _inputController.text.trim();
     if (texto.isEmpty) return;
     _inputController.clear();
@@ -71,53 +73,207 @@ class _ChatTripScreenState extends ConsumerState<ChatTripScreen> {
   @override
   Widget build(BuildContext context) {
     final tripAsync = ref.watch(tripDetailsProvider(widget.tripId));
-    final chatState = ref.watch(chatNotifierProvider(widget.tripId));
     final currentUser = ref.watch(currentUserProvider);
 
-    // Scroll ao receber novas mensagens
-    ref.listen(chatNotifierProvider(widget.tripId), (prev, next) {
+    return tripAsync.when(
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator(color: AppColors.forest)),
+      ),
+      error: (e, _) => Scaffold(
+        appBar: AppBar(
+          backgroundColor: AppColors.forest,
+          foregroundColor: Colors.white,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: Center(child: Text('Erro ao carregar viagem: $e')),
+      ),
+      data: (trip) {
+        if (!trip.canAccessChat(currentUser?.id)) {
+          return _ChatLockedScreen(trip: trip, tripId: widget.tripId);
+        }
+        return _ChatBody(
+          tripId: widget.tripId,
+          trip: trip,
+          currentUser: currentUser,
+          inputController: _inputController,
+          scrollController: _scrollController,
+          focusNode: _focusNode,
+          canSend: _canSend,
+          onSend: _send,
+        );
+      },
+    );
+  }
+}
+
+class _ChatBody extends ConsumerWidget {
+  const _ChatBody({
+    required this.tripId,
+    required this.trip,
+    required this.currentUser,
+    required this.inputController,
+    required this.scrollController,
+    required this.focusNode,
+    required this.canSend,
+    required this.onSend,
+  });
+
+  final int tripId;
+  final TripModel trip;
+  final UserModel? currentUser;
+  final TextEditingController inputController;
+  final ScrollController scrollController;
+  final FocusNode focusNode;
+  final bool canSend;
+  final Future<void> Function({required bool chatReadOnly}) onSend;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final chatState = ref.watch(chatNotifierProvider(tripId));
+    final chatReadOnly = trip.isTripFinished;
+
+    if (chatReadOnly) {
+      focusNode.unfocus();
+    }
+
+    ref.listen(chatNotifierProvider(tripId), (prev, next) {
       if ((prev?.messages.length ?? 0) < next.messages.length) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (scrollController.hasClients) {
+            scrollController.animateTo(
+              scrollController.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        });
       }
     });
 
     return Scaffold(
       backgroundColor: const Color(0xFFF0EDE8), // tom levemente texturizado
       appBar: _ChatAppBar(
-        tripAsync: tripAsync,
-        tripId: widget.tripId,
+        tripAsync: AsyncData(trip),
+        tripId: tripId,
       ),
       body: Column(
         children: [
-          // ── Lista de mensagens ─────────────────────────────────────────
           Expanded(
             child: _MessageList(
               messages: chatState.messages,
               currentUser: currentUser,
-              scrollController: _scrollController,
-              tripId: widget.tripId,
+              scrollController: scrollController,
+              tripId: tripId,
+              chatReadOnly: chatReadOnly,
             ),
           ),
-
-          // Banner de erro de envio
-          if (chatState.sendError != null)
+          if (chatState.sendError != null && !chatReadOnly)
             _ErrorBanner(
               message: chatState.sendError!,
-              onDismiss: () => ref
-                  .read(chatNotifierProvider(widget.tripId).notifier)
-                  // Limpa o erro invalidando o state
-                  .enviar(''), // chamada vazia — não envia nada, só limpa
+              onDismiss: () =>
+                  ref.read(chatNotifierProvider(tripId).notifier).clearSendError(),
             ),
-
-          // ── Input de mensagem ──────────────────────────────────────────
-          _MessageInput(
-            controller: _inputController,
-            focusNode: _focusNode,
-            canSend: _canSend,
-            isSending: chatState.isSending,
-            onSend: _send,
-          ),
+          if (chatReadOnly)
+            const _ChatReadOnlyBar()
+          else
+            _MessageInput(
+              controller: inputController,
+              focusNode: focusNode,
+              canSend: canSend,
+              isSending: chatState.isSending,
+              onSend: () => onSend(chatReadOnly: false),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+class _ChatLockedScreen extends StatelessWidget {
+  const _ChatLockedScreen({required this.trip, required this.tripId});
+  final TripModel trip;
+  final int tripId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.cream,
+      appBar: AppBar(
+        backgroundColor: AppColors.forest,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          onPressed: () => context.pop(),
+        ),
+        title: Text(
+          trip.destino,
+          style: const TextStyle(
+            fontFamily: 'DMSerifDisplay',
+            fontSize: 17,
+            color: Colors.white,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: AppColors.forest.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.lock_outline_rounded,
+                  size: 36,
+                  color: AppColors.forest,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Chat ainda não liberado',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'DMSerifDisplay',
+                  fontSize: 22,
+                  color: AppColors.bark,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                trip.isAguardandoConfirmacao
+                    ? 'Aguarde o organizador confirmar sua participação para conversar com o grupo.'
+                    : 'Participe da viagem e aguarde a confirmação do organizador.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 14,
+                  height: 1.45,
+                  color: AppColors.barkMuted,
+                ),
+              ),
+              const SizedBox(height: 24),
+              OutlinedButton(
+                onPressed: () => openTripDetails(context, tripId),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.forest,
+                  side: const BorderSide(color: AppColors.forest),
+                ),
+                child: const Text('Voltar aos detalhes da viagem'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -164,7 +320,9 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
               overflow: TextOverflow.ellipsis,
             ),
             Text(
-              '${trip.participantesCount} participante${trip.participantesCount != 1 ? 's' : ''}',
+              trip.isTripFinished
+                  ? 'Viagem encerrada · somente leitura'
+                  : '${trip.participantesCount} participante${trip.participantesCount != 1 ? 's' : ''}',
               style: TextStyle(
                 fontFamily: 'Nunito',
                 fontSize: 12,
@@ -178,7 +336,7 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
         // Botão para ver detalhes da viagem
         IconButton(
           icon: const Icon(Icons.info_outline_rounded, size: 22),
-          onPressed: () => context.go('/trips/$tripId'),
+          onPressed: () => openTripDetails(context, tripId),
         ),
       ],
     );
@@ -193,12 +351,14 @@ class _MessageList extends StatelessWidget {
     required this.currentUser,
     required this.scrollController,
     required this.tripId,
+    required this.chatReadOnly,
   });
 
   final List<MessageModel> messages;
   final UserModel? currentUser;
   final ScrollController scrollController;
   final int tripId;
+  final bool chatReadOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -237,10 +397,9 @@ class _MessageList extends StatelessWidget {
           isMinha: isMinha,
           showAvatar: showAvatar,
           isPending: isOtimista && (msg).pending,
-          isFailed: isOtimista && (msg).failed,
-          onReenviar: isOtimista && (msg).failed
-              ? () {} // será conectado via Consumer
-              : null,
+          isFailed: isOtimista && (msg).failed && !chatReadOnly,
+          tripId: tripId,
+          chatReadOnly: chatReadOnly,
         );
       },
     );
@@ -288,7 +447,8 @@ class _MessageBubble extends ConsumerWidget {
     required this.showAvatar,
     required this.isPending,
     required this.isFailed,
-    this.onReenviar,
+    required this.tripId,
+    required this.chatReadOnly,
   });
 
   final MessageModel message;
@@ -296,11 +456,11 @@ class _MessageBubble extends ConsumerWidget {
   final bool showAvatar;
   final bool isPending;
   final bool isFailed;
-  final VoidCallback? onReenviar;
+  final int tripId;
+  final bool chatReadOnly;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tripId = message.viagemId;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -401,8 +561,8 @@ class _MessageBubble extends ConsumerWidget {
                     ),
                   ),
 
-                  // Botão reenviar (mensagem falhou)
-                  if (isFailed)
+                  // Botão reenviar (mensagem falhou; não disponível com viagem encerrada)
+                  if (isFailed && !chatReadOnly)
                     TextButton.icon(
                       onPressed: () {
                         if (message is OptimisticMessage) {
@@ -479,23 +639,11 @@ class _SenderAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CircleAvatar(
+    return AppAvatar(
+      foto: sender?.foto,
+      name: sender?.name,
+      initials: sender?.initials,
       radius: 15,
-      backgroundColor: AppColors.sand,
-      backgroundImage: sender?.foto != null
-          ? CachedNetworkImageProvider(sender!.foto!)
-          : null,
-      child: sender?.foto == null
-          ? Text(
-              sender?.initials ?? '?',
-              style: const TextStyle(
-                fontFamily: 'Nunito',
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: AppColors.bark,
-              ),
-            )
-          : null,
     );
   }
 }
@@ -526,6 +674,57 @@ class _DateDivider extends StatelessWidget {
             ),
           ),
           const Expanded(child: Divider(color: AppColors.sand)),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Barra de chat encerrado (somente leitura) ─────────────────────────────────
+
+class _ChatReadOnlyBar extends StatelessWidget {
+  const _ChatReadOnlyBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+        16,
+        14,
+        16,
+        14 + MediaQuery.of(context).padding.bottom,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.cream,
+        border: const Border(top: BorderSide(color: AppColors.sand)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.bark.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.lock_outline_rounded,
+            size: 20,
+            color: AppColors.barkMuted.withOpacity(0.9),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Esta viagem já encerrou. O chat está em modo de visualização.',
+              style: TextStyle(
+                fontFamily: 'Nunito',
+                fontSize: 13,
+                height: 1.35,
+                color: AppColors.barkMuted.withOpacity(0.95),
+              ),
+            ),
+          ),
         ],
       ),
     );

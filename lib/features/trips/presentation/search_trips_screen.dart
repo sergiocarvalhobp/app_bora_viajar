@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
-import '../../../core/ui/avatar_image_provider.dart';
+import '../../../core/router/trip_navigation.dart';
+import '../../../core/ui/app_avatar.dart';
+import '../../../core/errors/app_exception.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../auth/presentation/auth_provider.dart';
 import '../domain/trip_model.dart';
@@ -139,12 +141,23 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
               ),
             ),
 
-            error: (err, _) => SliverFillRemaining(
-              child: _ErrorState(
-                message: err.toString(),
-                onRetry: () => ref.invalidate(tripsSearchProvider),
-              ),
-            ),
+            error: (err, _) {
+              final appErr = err is AppException ? err : null;
+              final message = appErr?.message ??
+                  'Não foi possível carregar as viagens.';
+              final isAuth = appErr is AuthException;
+              return SliverFillRemaining(
+                child: _ErrorState(
+                  message: message,
+                  isAuth: isAuth,
+                  onRetry: () => ref.invalidate(tripsSearchProvider),
+                  onReLogin: isAuth
+                      ? () =>
+                          ref.read(authNotifierProvider.notifier).logout()
+                      : null,
+                ),
+              );
+            },
 
             data: (searchState) {
               final trips = searchState.trips;
@@ -182,7 +195,7 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
                         child: TripCard(
                           trip: trips[i],
                           showActions: true,
-                          onTap: () => context.push('/trips/${trips[i].id}'),
+                          onTap: () => openTripDetails(context, trips[i].id),
                         ),
                       );
                     },
@@ -252,21 +265,14 @@ class _LoggedHeaderRow extends StatelessWidget {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              CircleAvatar(
+              AppAvatar(
                 key: ValueKey(user?.foto ?? 'no-avatar'),
+                foto: user?.foto,
+                name: user?.name,
+                initials: user?.initials,
                 radius: 19,
                 backgroundColor: Colors.white24,
-                backgroundImage: avatarImageProvider(user?.foto as String?),
-                child: (user?.foto as String?) == null
-                    ? Text(
-                        _firstName(user?.name as String?).substring(0, 1).toUpperCase(),
-                        style: const TextStyle(
-                          fontFamily: 'Nunito',
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      )
-                    : null,
+                textColor: Colors.white,
               ),
               Positioned(
                 right: -1,
@@ -693,24 +699,42 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message, required this.onRetry});
+  const _ErrorState({
+    required this.message,
+    required this.onRetry,
+    this.isAuth = false,
+    this.onReLogin,
+  });
+
   final String message;
   final VoidCallback onRetry;
+  final bool isAuth;
+  final VoidCallback? onReLogin;
 
   @override
   Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.wifi_off_rounded,
-                size: 64, color: AppColors.barkMuted),
+            Icon(
+              isAuth ? Icons.lock_outline_rounded : Icons.wifi_off_rounded,
+              size: 64,
+              color: AppColors.barkMuted,
+            ),
             const SizedBox(height: 16),
             Text(
-              'Não foi possível carregar as viagens',
-              style: Theme.of(context).textTheme.headlineSmall,
+              isAuth ? 'Sessão expirada' : 'Não foi possível carregar as viagens',
+              style: tt.headlineSmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: tt.bodyMedium?.copyWith(color: AppColors.barkMuted),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
@@ -719,6 +743,13 @@ class _ErrorState extends StatelessWidget {
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text('Tentar novamente'),
             ),
+            if (onReLogin != null) ...[
+              const SizedBox(height: 10),
+              OutlinedButton(
+                onPressed: onReLogin,
+                child: const Text('Entrar novamente'),
+              ),
+            ],
           ],
         ),
       ),

@@ -47,16 +47,26 @@ abstract final class ErrorHandler {
     // Mensagem de erro retornada pelo tRPC/Express
     final serverMessage = _extractMessage(body);
 
-    final path = e.requestOptions.path;
+    final path = e.requestOptions.uri.path;
 
     return switch (status) {
       401 => AuthException(
           serverMessage ?? 'Sessão expirada. Faça login novamente.',
         ),
+      403 when serverMessage != null && serverMessage.isNotEmpty =>
+        ServerException(serverMessage),
       403 when path.contains('/profile/') => ServerException(
           serverMessage ??
               'Não foi possível salvar o perfil. A foto pode ser grande demais '
               'ou o servidor bloqueou o envio. Tente uma imagem menor.',
+        ),
+      403 when path.contains('organizer-rating') => ServerException(
+          serverMessage ??
+              'Não foi possível salvar a avaliação. Faça login novamente ou '
+              'aguarde atualização da API.',
+        ),
+      404 when path.contains('organizer-rating') => ServerException(
+          'Avaliação indisponível: atualize a API (organizer-rating) no servidor.',
         ),
       403 => AuthException(
           serverMessage ?? 'Acesso negado. Verifique se está logado.',

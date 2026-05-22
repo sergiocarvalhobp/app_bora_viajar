@@ -39,6 +39,10 @@ class TripModel extends Equatable {
     this.participantesCount = 0,
     this.myStatus,
     this.createdAt,
+    this.tripFinished,
+    this.canRateOrganizer,
+    this.myOrganizerRating,
+    this.myOrganizerTestimony,
   });
 
   final int id;
@@ -59,7 +63,49 @@ class TripModel extends Equatable {
   final String? myStatus; // 'interessado' | 'confirmado' | null
   final DateTime? createdAt;
 
+  /// Viagem já terminou (data fim anterior a hoje).
+  final bool? tripFinished;
+  /// Participante confirmado pode avaliar quem criou a viagem (após o fim).
+  final bool? canRateOrganizer;
+  /// Nota 1–5 que o usuário logado deu nesta viagem, se houver.
+  final int? myOrganizerRating;
+  /// Testemunho do participante sobre a viagem / quem a criou.
+  final String? myOrganizerTestimony;
+
   // ── Helpers ────────────────────────────────────────────────────────────────
+
+  static DateTime _dateOnly(DateTime d) =>
+      DateTime(d.year, d.month, d.day);
+
+  static DateTime get _todayLocal => _dateOnly(DateTime.now());
+
+  /// Viagem já passou (data fim anterior a hoje).
+  bool get isTripFinished {
+    return _dateOnly(dataFim).isBefore(_todayLocal);
+  }
+
+  /// Home / explorar: data fim ainda é hoje ou futura.
+  bool get isValidForHome => !_dateOnly(dataFim).isBefore(_todayLocal);
+
+  /// Último dia da viagem ou depois — pode avaliar.
+  bool get isTripEndedForReview {
+    if (tripFinished == true) return true;
+    final today = DateTime.now();
+    final end = DateTime(dataFim.year, dataFim.month, dataFim.day);
+    final now = DateTime(today.year, today.month, today.day);
+    return !end.isAfter(now);
+  }
+
+  /// Viagem ainda em andamento ou futura (exibir na home / explorar).
+  bool get isActiveForExplore => isValidForHome;
+
+  bool canRateOrganizerNow(int? currentUserId) {
+    if (canRateOrganizer != null) return canRateOrganizer!;
+    if (currentUserId == null) return false;
+    return isTripEndedForReview &&
+        isConfirmado &&
+        currentUserId != liderId;
+  }
 
   /// Vagas disponíveis. null = sem limite.
   int? get vagasDisponiveis =>
@@ -70,6 +116,17 @@ class TripModel extends Equatable {
 
   bool get isParticipando =>
       myStatus == 'interessado' || myStatus == 'confirmado';
+
+  bool get isConfirmado => myStatus == 'confirmado';
+
+  bool get isAguardandoConfirmacao => myStatus == 'interessado';
+
+  /// Chat: organizador sempre; viajante só após confirmação.
+  bool canAccessChat(int? currentUserId) {
+    if (currentUserId == null) return false;
+    if (currentUserId == liderId) return true;
+    return myStatus == 'confirmado';
+  }
 
   /// Duração em dias.
   int get duracaoDias => dataFim.difference(dataInicio).inDays + 1;
@@ -91,13 +148,32 @@ class TripModel extends Equatable {
 
   static int _int(dynamic v) => (v is num) ? v.toInt() : int.parse('$v');
 
+  static DateTime _parseDate(dynamic v) {
+    if (v == null) throw FormatException('data ausente');
+    if (v is String) {
+      return DateTime.parse(v.split('T').first);
+    }
+    if (v is List && v.length >= 3) {
+      return DateTime(_int(v[0]), _int(v[1]), _int(v[2]));
+    }
+    if (v is Map) {
+      final y = v['year'] ?? v['Year'];
+      final m = v['month'] ?? v['Month'] ?? v['monthValue'];
+      final d = v['day'] ?? v['Day'] ?? v['dayOfMonth'];
+      if (y != null && m != null && d != null) {
+        return DateTime(_int(y), _int(m), _int(d));
+      }
+    }
+    throw FormatException('formato de data inválido: $v');
+  }
+
   factory TripModel.fromJson(Map<String, dynamic> json) {
     return TripModel(
       id:                 _int(json['id']),
       liderId:            _int(json['liderId'] ?? json['lider_id']),
       destino:            json['destino'] as String,
-      dataInicio:         DateTime.parse(json['dataInicio'] ?? json['data_inicio'] as String),
-      dataFim:            DateTime.parse(json['dataFim'] ?? json['data_fim'] as String),
+      dataInicio:         _parseDate(json['dataInicio'] ?? json['data_inicio']),
+      dataFim:            _parseDate(json['dataFim'] ?? json['data_fim']),
       descricao:          json['descricao'] as String,
       tipo:               TipoViagem.fromString(json['tipo'] as String),
       estado:             json['estado'] as String?,
@@ -118,6 +194,12 @@ class TripModel extends Equatable {
       createdAt:          json['createdAt'] != null
                             ? DateTime.tryParse(json['createdAt'] as String)
                             : null,
+      tripFinished:       json['tripFinished'] as bool?,
+      canRateOrganizer:   json['canRateOrganizer'] as bool?,
+      myOrganizerRating:  json['myOrganizerRating'] != null
+          ? _int(json['myOrganizerRating'])
+          : null,
+      myOrganizerTestimony: json['myOrganizerTestimony'] as String?,
     );
   }
 
@@ -126,6 +208,7 @@ class TripModel extends Equatable {
         id, liderId, destino, dataInicio, dataFim,
         descricao, tipo, estado, cidade, atrativo,
         maxVagas, participantesCount, myStatus,
+        tripFinished, canRateOrganizer, myOrganizerRating, myOrganizerTestimony,
       ];
 }
 
@@ -138,6 +221,7 @@ class TripFilters extends Equatable {
     this.dataInicio,
     this.dataFim,
     this.apenasComVagas = false,
+    this.apenasAtivas = true,
   });
 
   final String? query;
@@ -146,6 +230,8 @@ class TripFilters extends Equatable {
   final DateTime? dataInicio;
   final DateTime? dataFim;
   final bool apenasComVagas;
+  /// Oculta viagens já encerradas (home / explorar).
+  final bool apenasAtivas;
 
   bool get isEmpty =>
       query == null &&
@@ -162,6 +248,7 @@ class TripFilters extends Equatable {
     DateTime? dataInicio,
     DateTime? dataFim,
     bool? apenasComVagas,
+    bool? apenasAtivas,
   }) {
     return TripFilters(
       query:          query         ?? this.query,
@@ -170,6 +257,7 @@ class TripFilters extends Equatable {
       dataInicio:     dataInicio    ?? this.dataInicio,
       dataFim:        dataFim       ?? this.dataFim,
       apenasComVagas: apenasComVagas ?? this.apenasComVagas,
+      apenasAtivas:   apenasAtivas   ?? this.apenasAtivas,
     );
   }
 
@@ -181,6 +269,7 @@ class TripFilters extends Equatable {
       dataInicio:     campo == 'dataInicio' ? null : dataInicio,
       dataFim:        campo == 'dataFim'    ? null : dataFim,
       apenasComVagas: campo == 'vagas'      ? false : apenasComVagas,
+      apenasAtivas:   apenasAtivas,
     );
   }
 
@@ -192,10 +281,11 @@ class TripFilters extends Equatable {
     if (dataInicio != null) params['dataInicio'] = dataInicio!.toIso8601String().substring(0, 10);
     if (dataFim != null) params['dataFim'] = dataFim!.toIso8601String().substring(0, 10);
     if (apenasComVagas) params['comVagas'] = 'true';
+    if (apenasAtivas) params['apenasAtivas'] = 'true';
     return params;
   }
 
   @override
   List<Object?> get props =>
-      [query, tipo, estado, dataInicio, dataFim, apenasComVagas];
+      [query, tipo, estado, dataInicio, dataFim, apenasComVagas, apenasAtivas];
 }

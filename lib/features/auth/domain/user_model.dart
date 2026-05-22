@@ -13,6 +13,8 @@ class UserModel extends Equatable {
     this.estado,
     this.cidade,
     this.role = 'user',
+    this.organizerRating,
+    this.organizerRatingCount,
   });
 
   final int id;
@@ -25,6 +27,12 @@ class UserModel extends Equatable {
   final String? estado;
   final String? cidade;
   final String role;
+
+  /// Média 0–5 das viagens que o usuário criou (`organizerRating` / `mediaOrganizador` na API).
+  final double? organizerRating;
+
+  /// Quantidade de avaliações recebidas nas viagens que criou.
+  final int? organizerRatingCount;
 
   String get initials {
     final parts = name.trim().split(' ');
@@ -41,6 +49,13 @@ class UserModel extends Equatable {
     if (v is int) return v;
     if (v is num) return v.toInt();
     return int.tryParse('$v') ?? 0;
+  }
+
+  static double? _organizerRating(dynamic v) {
+    if (v == null) return null;
+    final n = v is num ? v.toDouble() : double.tryParse('$v');
+    if (n == null) return null;
+    return n.clamp(0.0, 5.0);
   }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -61,7 +76,29 @@ class UserModel extends Equatable {
       estado: estado,
       cidade: cidade,
       role: (json['role'] as String?) ?? 'user',
+      organizerRating: _organizerRating(
+        json['organizerRating'] ??
+            json['mediaOrganizador'] ??
+            json['media_organizador'] ??
+            json['organizerAverageRating'] ??
+            json['rating'] ??
+            json['ratingMedia'] ??
+            json['estrelas'],
+      ),
+      organizerRatingCount: _organizerRatingCount(
+        json['organizerRatingCount'] ??
+            json['totalAvaliacoesOrganizador'] ??
+            json['total_avaliacoes_organizador'] ??
+            json['ratingCount'],
+      ),
     );
+  }
+
+  static int? _organizerRatingCount(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse('$v');
   }
 
   Map<String, dynamic> toJson() => {
@@ -75,6 +112,9 @@ class UserModel extends Equatable {
         'estado': estado,
         'cidade': cidade,
         'role': role,
+        if (organizerRating != null) 'organizerRating': organizerRating,
+        if (organizerRatingCount != null)
+          'organizerRatingCount': organizerRatingCount,
       };
 
   UserModel copyWith({
@@ -88,6 +128,8 @@ class UserModel extends Equatable {
     String? estado,
     String? cidade,
     String? role,
+    double? organizerRating,
+    int? organizerRatingCount,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -100,10 +142,24 @@ class UserModel extends Equatable {
       estado: estado ?? this.estado,
       cidade: cidade ?? this.cidade,
       role: role ?? this.role,
+      organizerRating: organizerRating ?? this.organizerRating,
+      organizerRatingCount: organizerRatingCount ?? this.organizerRatingCount,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [id, openId, name, email, foto, bio, instagram, estado, cidade, role];
+  List<Object?> get props => [
+        id,
+        openId,
+        name,
+        email,
+        foto,
+        bio,
+        instagram,
+        estado,
+        cidade,
+        role,
+        organizerRating,
+        organizerRatingCount,
+      ];
 }

@@ -1,13 +1,18 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/errors/app_exception.dart';
+import '../../../core/errors/error_handler.dart';
+import '../../../core/router/trip_navigation.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/ui/avatar_image_provider.dart';
+import '../../../core/ui/app_avatar.dart';
 import '../../../core/ui/destination_image_resolver.dart';
+import '../../../core/ui/interactive_organizer_rating.dart';
+import '../../../core/ui/organizer_rating_stars.dart';
 import '../../auth/domain/user_model.dart';
 import '../../auth/presentation/auth_provider.dart';
+import '../../profile/presentation/user_profile_preview_sheet.dart';
 import '../domain/participant_model.dart';
 import '../domain/trip_model.dart';
 import '../presentation/trip_details_provider.dart';
@@ -30,17 +35,125 @@ class TripDetailsScreen extends ConsumerWidget {
 
 // ── Body principal ─────────────────────────────────────────────────────────────
 
-class _TripDetailsBody extends ConsumerWidget {
+class _TripDetailsBody extends ConsumerStatefulWidget {
   const _TripDetailsBody({required this.trip});
   final TripModel trip;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_TripDetailsBody> createState() => _TripDetailsBodyState();
+}
+
+class _TripDetailsBodyState extends ConsumerState<_TripDetailsBody> {
+  late int _selectedStars;
+  late final TextEditingController _testimonyController;
+  final _snackMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
+  TripModel get trip => widget.trip;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedStars = trip.myOrganizerRating ?? 0;
+    _testimonyController =
+        TextEditingController(text: trip.myOrganizerTestimony ?? '');
+  }
+
+  @override
+  void didUpdateWidget(covariant _TripDetailsBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (trip.myOrganizerRating != null) {
+      _selectedStars = trip.myOrganizerRating!;
+    }
+    if (trip.myOrganizerTestimony != null &&
+        trip.myOrganizerTestimony != oldWidget.trip.myOrganizerTestimony) {
+      _testimonyController.text = trip.myOrganizerTestimony!;
+    }
+  }
+
+  @override
+  void dispose() {
+    _testimonyController.dispose();
+    super.dispose();
+  }
+
+  bool _showReviewMode(int? userId, bool isLider) =>
+      !isLider &&
+      trip.isConfirmado &&
+      trip.canRateOrganizerNow(userId);
+
+  void _showSnack(String message, {bool isError = false}) {
+    if (!mounted) return;
+    final messenger = _snackMessengerKey.currentState;
+    if (messenger == null) return;
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          maxLines: 4,
+          overflow: TextOverflow.ellipsis,
+        ),
+        backgroundColor: isError ? null : AppColors.forest,
+        behavior: SnackBarBehavior.fixed,
+        duration: Duration(seconds: isError ? 6 : 3),
+      ),
+    );
+  }
+
+  Future<void> _saveReview() async {
+    if (_selectedStars < 1) {
+      _showSnack('Escolha de 1 a 5 estrelas para avaliar a viagem.', isError: true);
+      return;
+    }
+    try {
+      await ref
+          .read(organizerRatingNotifierProvider(trip.id).notifier)
+          .submit(_selectedStars, testemunho: _testimonyController.text);
+      if (!mounted) return;
+      _showSnack('Avaliação da viagem salva com sucesso!');
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e is AppException
+          ? e.message
+          : ErrorHandler.handle(e).message;
+      _showSnack(
+        msg.contains('Acesso negado') || msg.contains('Sessão')
+            ? '$msg Faça login novamente e tente outra vez.'
+            : msg,
+        isError: true,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final currentUser   = ref.watch(currentUserProvider);
     final isLider       = ref.watch(isLiderDaViagemProvider(trip.id));
     final participationState = ref.watch(tripParticipationNotifierProvider(trip.id));
+    final ratingState = ref.watch(organizerRatingNotifierProvider(trip.id));
+    final reviewMode = _showReviewMode(currentUser?.id, isLider);
 
-    return Scaffold(
+    ref.listen(tripParticipationNotifierProvider(trip.id), (prev, next) {
+      if (!mounted) return;
+      if (next is AsyncError) {
+        final msg = next.error is AppException
+            ? (next.error as AppException).message
+            : 'Não foi possível atualizar a participação.';
+        _showSnack(msg, isError: true);
+      } else if (prev is AsyncLoading && next is AsyncData) {
+        _showSnack(
+          isLider
+              ? 'Participante confirmado!'
+              : (trip.isParticipando
+                  ? 'Interesse cancelado.'
+                  : 'Interesse enviado! O organizador foi avisado.'),
+        );
+      }
+    });
+
+    return ScaffoldMessenger(
+      key: _snackMessengerKey,
+      child: Scaffold(
       backgroundColor: AppColors.cream,
       body: CustomScrollView(
         slivers: [
@@ -84,6 +197,15 @@ class _TripDetailsBody extends ConsumerWidget {
                 if (trip.lider != null)
                   _LiderSection(lider: trip.lider!),
 
+                if (reviewMode) ...[
+                  const _Divider(),
+                  _TripReviewSection(
+                    selectedStars: _selectedStars,
+                    testimonyController: _testimonyController,
+                    onStarsChanged: (s) => setState(() => _selectedStars = s),
+                  ),
+                ],
+
                 const _Divider(),
 
                 // Participantes
@@ -92,6 +214,13 @@ class _TripDetailsBody extends ConsumerWidget {
                   isLider: isLider,
                   currentUserId: currentUser?.id,
                 ),
+
+                if (!isLider && trip.isAguardandoConfirmacao)
+                  const _ChatPendingBanner(
+                    message:
+                        'O chat e a avaliação da viagem serão liberados quando o '
+                        'organizador confirmar sua participação.',
+                  ),
 
                 // Espaço para o botão fixo no fundo
                 const SizedBox(height: 120),
@@ -105,16 +234,21 @@ class _TripDetailsBody extends ConsumerWidget {
       bottomNavigationBar: _BottomAction(
         trip: trip,
         isLider: isLider,
-        currentUser: currentUser,
+        canAccessChat: trip.canAccessChat(currentUser?.id),
         participationState: participationState,
+        reviewMode: reviewMode,
+        reviewLoading: ratingState is AsyncLoading,
+        canSaveReview: _selectedStars >= 1,
         onParticipar: () =>
             ref.read(tripParticipationNotifierProvider(trip.id).notifier)
                .participar(),
         onCancelar: () =>
             ref.read(tripParticipationNotifierProvider(trip.id).notifier)
                .cancelar(),
-        onChat: () => context.push('/trips/${trip.id}/chat'),
+        onSaveReview: _saveReview,
+        onChat: () => openTripChat(context, trip.id),
       ),
+    ),
     );
   }
 }
@@ -451,13 +585,15 @@ class _DescricaoSectionState extends State<_DescricaoSection> {
 
 // ── Seção do líder ─────────────────────────────────────────────────────────────
 
-class _LiderSection extends StatelessWidget {
+class _LiderSection extends ConsumerWidget {
   const _LiderSection({required this.lider});
+
   final UserModel lider;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tt = Theme.of(context).textTheme;
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -465,26 +601,21 @@ class _LiderSection extends StatelessWidget {
         children: [
           Text('Organizado por', style: tt.titleLarge),
           const SizedBox(height: 14),
-          Row(
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () =>
+                  showUserProfilePreviewSheet(context, ref, user: lider),
+              borderRadius: BorderRadius.circular(14),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
             children: [
-              // Avatar
-              CircleAvatar(
+              AppAvatar(
+                foto: lider.foto,
+                name: lider.name,
+                initials: lider.initials,
                 radius: 28,
-                backgroundColor: AppColors.sand,
-                backgroundImage: lider.foto != null
-                    ? CachedNetworkImageProvider(lider.foto!)
-                    : null,
-                child: lider.foto == null
-                    ? Text(
-                        lider.initials,
-                        style: const TextStyle(
-                          fontFamily: 'Nunito',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.bark,
-                        ),
-                      )
-                    : null,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -532,8 +663,125 @@ class _LiderSection extends StatelessWidget {
                 ),
               ),
             ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          OrganizerRatingStars(
+            rating: lider.organizerRating,
+            ratingCount: lider.organizerRatingCount,
+            filledLabelPrefix: 'Média das viagens que criou',
+            emptyLabel: 'Ainda sem avaliações das viagens que criou',
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TripReviewSection extends StatelessWidget {
+  const _TripReviewSection({
+    required this.selectedStars,
+    required this.testimonyController,
+    required this.onStarsChanged,
+  });
+
+  final int selectedStars;
+  final TextEditingController testimonyController;
+  final ValueChanged<int> onStarsChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Avaliar a viagem',
+              style: tt.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Text(
+            'Quem criou esta viagem recebe a nota. Só participantes confirmados '
+            '(exceto o criador) podem avaliar após o fim da viagem.',
+            style: tt.bodySmall?.copyWith(color: AppColors.barkMuted),
+          ),
+          const SizedBox(height: 14),
+          InteractiveOrganizerRating(
+            value: selectedStars,
+            onChanged: onStarsChanged,
+          ),
+          const SizedBox(height: 16),
+          Text('Testemunho da viagem',
+              style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: testimonyController,
+            maxLines: 4,
+            maxLength: 500,
+            decoration: InputDecoration(
+              hintText: 'Como foi a viagem? Conte sobre o grupo e quem organizou…',
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: AppColors.sand),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: AppColors.sand),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: AppColors.forest, width: 2),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Aviso: chat após confirmação ─────────────────────────────────────────────
+
+class _ChatPendingBanner extends StatelessWidget {
+  const _ChatPendingBanner({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.forest.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.forest.withOpacity(0.2)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.info_outline_rounded,
+                size: 20, color: AppColors.forest),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 13,
+                  height: 1.35,
+                  color: AppColors.bark,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -585,14 +833,46 @@ class _ParticipantesSection extends ConsumerWidget {
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Text(
-                    'Nenhum participante ainda. Seja o primeiro!',
+                    isLider
+                        ? 'Ninguém demonstrou interesse ainda.'
+                        : 'Nenhum participante ainda. Seja o primeiro!',
                     style: tt.bodyMedium?.copyWith(color: AppColors.barkMuted),
                   ),
                 );
               }
 
+              final pendentes =
+                  isLider ? lista.where((p) => p.isInteressado).length : 0;
+
               return Column(
-                children: lista.map((p) => _ParticipanteItem(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (pendentes > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.terra.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.terra.withOpacity(0.25),
+                          ),
+                        ),
+                        child: Text(
+                          pendentes == 1
+                              ? '1 pessoa aguardando sua confirmação'
+                              : '$pendentes pessoas aguardando sua confirmação',
+                          style: tt.bodySmall?.copyWith(
+                            color: AppColors.terra,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ...lista.map((p) => _ParticipanteItem(
                   participante: p,
                   isLider: isLider,
                   isMe: p.userId == currentUserId,
@@ -601,7 +881,8 @@ class _ParticipantesSection extends ConsumerWidget {
                             .read(tripParticipationNotifierProvider(tripId).notifier)
                             .confirmarParticipante(p.id)
                       : null,
-                )).toList(),
+                )),
+                ],
               );
             },
           ),
@@ -633,22 +914,11 @@ class _ParticipanteItem extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          // Avatar
-          CircleAvatar(
+          AppAvatar(
+            foto: user?.foto,
+            name: user?.name,
+            initials: user?.initials,
             radius: 22,
-            backgroundColor: AppColors.sand,
-            backgroundImage: avatarImageProvider(user?.foto),
-            child: user?.foto == null
-                ? Text(
-                    user?.initials ?? '?',
-                    style: const TextStyle(
-                      fontFamily: 'Nunito',
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.bark,
-                    ),
-                  )
-                : null,
           ),
           const SizedBox(width: 12),
 
@@ -709,19 +979,27 @@ class _BottomAction extends StatelessWidget {
   const _BottomAction({
     required this.trip,
     required this.isLider,
-    required this.currentUser,
+    required this.canAccessChat,
     required this.participationState,
+    required this.reviewMode,
+    required this.reviewLoading,
+    required this.canSaveReview,
     required this.onParticipar,
     required this.onCancelar,
+    required this.onSaveReview,
     required this.onChat,
   });
 
   final TripModel trip;
   final bool isLider;
-  final UserModel? currentUser;
+  final bool canAccessChat;
   final AsyncValue<void> participationState;
+  final bool reviewMode;
+  final bool reviewLoading;
+  final bool canSaveReview;
   final VoidCallback onParticipar;
   final VoidCallback onCancelar;
+  final VoidCallback onSaveReview;
   final VoidCallback onChat;
 
   @override
@@ -744,8 +1022,8 @@ class _BottomAction extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Botão de chat — sempre visível para participantes e líder
-          if (isLider || trip.isParticipando) ...[
+          // Chat: líder ou participante confirmado
+          if (canAccessChat) ...[
             _ChatButton(onTap: onChat),
             const SizedBox(width: 12),
           ],
@@ -756,8 +1034,12 @@ class _BottomAction extends StatelessWidget {
               trip: trip,
               isLider: isLider,
               isLoading: isLoading,
+              reviewMode: reviewMode,
+              reviewLoading: reviewLoading,
+              canSaveReview: canSaveReview,
               onParticipar: onParticipar,
               onCancelar: onCancelar,
+              onSaveReview: onSaveReview,
             ),
           ),
         ],
@@ -771,24 +1053,57 @@ class _MainActionButton extends StatelessWidget {
     required this.trip,
     required this.isLider,
     required this.isLoading,
+    required this.reviewMode,
+    required this.reviewLoading,
+    required this.canSaveReview,
     required this.onParticipar,
     required this.onCancelar,
+    required this.onSaveReview,
   });
 
   final TripModel trip;
   final bool isLider;
   final bool isLoading;
+  final bool reviewMode;
+  final bool reviewLoading;
+  final bool canSaveReview;
   final VoidCallback onParticipar;
   final VoidCallback onCancelar;
+  final VoidCallback onSaveReview;
 
   @override
   Widget build(BuildContext context) {
-    // Líder vê resumo de candidatos
+    if (reviewMode) {
+      return ElevatedButton.icon(
+        onPressed: reviewLoading || !canSaveReview ? null : onSaveReview,
+        icon: reviewLoading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.save_outlined, size: 20),
+        label: const Text('Salvar avaliação da viagem'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.forest,
+          foregroundColor: Colors.white,
+          minimumSize: const Size.fromHeight(52),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      );
+    }
+
+    // Líder — confirma interessados na lista acima
     if (isLider) {
       return ElevatedButton.icon(
         onPressed: null,
         icon: const Icon(Icons.manage_accounts_outlined, size: 18),
-        label: const Text('Você é o organizador'),
+        label: const Text('Confirme interessados na lista acima'),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.sand,
           foregroundColor: AppColors.bark,
@@ -834,6 +1149,19 @@ class _MainActionButton extends StatelessWidget {
           minimumSize: const Size.fromHeight(52),
         ),
         child: const Text('Viagem lotada'),
+      );
+    }
+
+    // Viagem encerrada — não aceita novos interessados
+    if (trip.isTripFinished) {
+      return ElevatedButton(
+        onPressed: null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.sand,
+          foregroundColor: AppColors.barkMuted,
+          minimumSize: const Size.fromHeight(52),
+        ),
+        child: const Text('Viagem encerrada'),
       );
     }
 

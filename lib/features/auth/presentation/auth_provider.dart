@@ -63,16 +63,23 @@ class AuthNotifier extends _$AuthNotifier {
   Future<void> _restoreSession() async {
     final gen = ++_restoreGeneration;
     AuthDebug.log('restore', 'a verificar SecureStorage…');
-    final user = await _repo.tryRestoreSession();
-    if (gen != _restoreGeneration) {
-      AuthDebug.log('restore', 'ignorado (login em curso)');
-      return;
-    }
-    if (user != null) {
-      AuthDebug.log('restore', 'sessão OK userId=${user.id}');
-      _logState('restore', state = AuthAuthenticated(user));
-    } else {
-      AuthDebug.log('restore', 'sem sessão');
+    try {
+      final user = await _repo.tryRestoreSession();
+      if (gen != _restoreGeneration) {
+        AuthDebug.log('restore', 'ignorado (login em curso)');
+        return;
+      }
+      if (user != null) {
+        AuthDebug.log('restore', 'sessão OK userId=${user.id}');
+        _logState('restore', state = AuthAuthenticated(user));
+      } else {
+        AuthDebug.log('restore', 'sem sessão');
+        _logState('restore', state = const AuthUnauthenticated());
+      }
+    } catch (e, st) {
+      AuthDebug.log('restore', 'falhou: $e');
+      if (kDebugMode) AuthDebug.log('restore', 'stack: $st');
+      if (gen != _restoreGeneration) return;
       _logState('restore', state = const AuthUnauthenticated());
     }
   }
