@@ -8,7 +8,10 @@ import '../../../core/app_constants.dart';
 import '../../../core/router/trip_navigation.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/errors/error_handler.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/bv_forest_app_bar.dart';
+import '../../../core/ui/forest_hero_background.dart';
 import '../../../core/ui/avatar_image_provider.dart';
 import '../../../core/ui/organizer_rating_stars.dart';
 import '../../auth/domain/user_model.dart';
@@ -50,7 +53,7 @@ class PublicProfileScreen extends ConsumerWidget {
         body: Center(child: CircularProgressIndicator(color: AppColors.forest)),
       ),
       error: (e, _) => Scaffold(
-        appBar: AppBar(title: const Text('Perfil')),
+        appBar: const BvForestAppBar(title: 'Perfil'),
         body: Center(child: Text('Erro: $e')),
       ),
       data: (bundle) => _ProfileBody(user: bundle.user, trips: bundle.trips),
@@ -65,7 +68,7 @@ class _ProfileBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
+    final tt = context.appText;
 
     return Scaffold(
       backgroundColor: AppColors.cream,
@@ -74,22 +77,14 @@ class _ProfileBody extends StatelessWidget {
           SliverAppBar(
             expandedHeight: 200,
             pinned: true,
-            backgroundColor: AppColors.forest,
+            backgroundColor: Colors.transparent,
             foregroundColor: Colors.white,
             elevation: 0,
             flexibleSpace: FlexibleSpaceBar(
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [AppColors.forest, AppColors.forestDk],
-                      ),
-                    ),
-                  ),
+                  const ForestHeroBackground(),
                   Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -168,13 +163,13 @@ class _ProfileBody extends StatelessWidget {
                         style: tt.bodyMedium?.copyWith(
                             color: AppColors.barkMuted, height: 1.6)),
                   ],
-                  if (user.instagram != null && user.instagram!.isNotEmpty) ...[
+                  if (user.instagramHandle != null) ...[
                     const SizedBox(height: 12),
                     Row(children: [
                       const Icon(Icons.alternate_email_rounded,
                           size: 14, color: AppColors.terra),
                       const SizedBox(width: 4),
-                      Text(user.instagram!,
+                      Text(user.instagramHandle!,
                           style: tt.bodySmall?.copyWith(
                               color: AppColors.terra,
                               fontWeight: FontWeight.w600)),

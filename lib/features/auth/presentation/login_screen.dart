@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/forest_hero_background.dart';
 import '../auth_debug.dart';
 import '../presentation/auth_provider.dart';
 
@@ -61,11 +62,7 @@ class _HeroSection extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Fundo verde floresta com padrão sutil
-        Container(color: AppColors.forest),
-
-        // Overlay com padrão pontilhado decorativo
-        CustomPaint(painter: _DotPatternPainter()),
+        const ForestHeroBackground(),
 
         // Conteúdo central
         Padding(
@@ -73,22 +70,40 @@ class _HeroSection extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Ícone de mapa/viagem
+              // Ícone do app
               Container(
-                width: 80,
-                height: 80,
+                width: 96,
+                height: 96,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity( 0.15),
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(22),
                   border: Border.all(
-                    color: Colors.white.withOpacity( 0.3),
-                    width: 1.5,
+                    color: Colors.white.withOpacity(0.35),
+                    width: 2,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-                child: const Icon(
-                  Icons.explore_rounded,
-                  size: 44,
-                  color: Colors.white,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.asset(
+                    'assets/images/icon/app_icon_orange.jpg',
+                    width: 96,
+                    height: 96,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => ColoredBox(
+                      color: Colors.white.withOpacity(0.15),
+                      child: const Icon(
+                        Icons.explore_rounded,
+                        size: 44,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
                 ),
               ),
 
@@ -432,25 +447,3 @@ class _ErrorBanner extends StatelessWidget {
   }
 }
 
-// ── Padrão pontilhado decorativo ───────────────────────────────────────────────
-
-class _DotPatternPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withOpacity( 0.06)
-      ..style = PaintingStyle.fill;
-
-    const spacing = 24.0;
-    const radius  = 2.0;
-
-    for (double x = 0; x < size.width; x += spacing) {
-      for (double y = 0; y < size.height; y += spacing) {
-        canvas.drawCircle(Offset(x, y), radius, paint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DotPatternPainter old) => false;
-}

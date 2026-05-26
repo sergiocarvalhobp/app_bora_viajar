@@ -5,8 +5,10 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../../core/router/trip_navigation.dart';
 import '../../../core/ui/app_avatar.dart';
+import '../../../core/ui/forest_hero_background.dart';
 import '../../../core/errors/app_exception.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../auth/presentation/auth_provider.dart';
 import '../domain/trip_model.dart';
 import '../presentation/trips_provider.dart';
@@ -45,10 +47,10 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filters      = ref.watch(tripsFiltersNotifierProvider);
-    final tripsAsync   = ref.watch(tripsSearchProvider);
+    final filters = ref.watch(tripsFiltersNotifierProvider);
+    final tripsAsync = ref.watch(tripsSearchProvider);
     final filtersNotif = ref.read(tripsFiltersNotifierProvider.notifier);
-    final user         = ref.watch(currentUserProvider);
+    final user = ref.watch(currentUserProvider);
 
     return Scaffold(
       backgroundColor: AppColors.cream,
@@ -57,7 +59,8 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
         slivers: [
           // ── App Bar expansível ──────────────────────────────────────────
           SliverAppBar(
-            backgroundColor: AppColors.forest,
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
             expandedHeight: 188,
             floating: false,
             pinned: true,
@@ -75,7 +78,7 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Container(color: AppColors.forest),
+                  const ForestHeroBackground(),
                   Positioned(
                     top: MediaQuery.paddingOf(context).top + 10,
                     left: 16,
@@ -86,11 +89,11 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
                     top: MediaQuery.paddingOf(context).top + 54,
                     left: 20,
                     child: Text(
-                      'Encontre companheiros pelo Brasil',
+                      'Encontre companheiros de viagem pelo Brasil a fora',
                       style: TextStyle(
                         fontFamily: 'Nunito',
                         fontSize: 13,
-                        color: Colors.white.withOpacity( 0.8),
+                        color: Colors.white.withOpacity(0.8),
                       ),
                     ),
                   ),
@@ -140,11 +143,10 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
                 ),
               ),
             ),
-
             error: (err, _) {
               final appErr = err is AppException ? err : null;
-              final message = appErr?.message ??
-                  'Não foi possível carregar as viagens.';
+              final message =
+                  appErr?.message ?? 'Não foi possível carregar as viagens.';
               final isAuth = appErr is AuthException;
               return SliverFillRemaining(
                 child: _ErrorState(
@@ -152,13 +154,11 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
                   isAuth: isAuth,
                   onRetry: () => ref.invalidate(tripsSearchProvider),
                   onReLogin: isAuth
-                      ? () =>
-                          ref.read(authNotifierProvider.notifier).logout()
+                      ? () => ref.read(authNotifierProvider.notifier).logout()
                       : null,
                 ),
               );
             },
-
             data: (searchState) {
               final trips = searchState.trips;
               if (trips.isEmpty) {
@@ -248,7 +248,7 @@ class _LoggedHeaderRow extends StatelessWidget {
           ),
         ),
         IconButton(
-          onPressed: () => context.go('/notifications'),
+          onPressed: () => openNotifications(context),
           icon: const Icon(
             Icons.notifications_none_rounded,
             color: Colors.white,
@@ -515,16 +515,40 @@ class _FiltrosSheet extends ConsumerWidget {
   final WidgetRef ref;
 
   static const _estados = [
-    'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO',
-    'MA', 'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI', 'PR',
-    'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO',
+    'AC',
+    'AL',
+    'AM',
+    'AP',
+    'BA',
+    'CE',
+    'DF',
+    'ES',
+    'GO',
+    'MA',
+    'MG',
+    'MS',
+    'MT',
+    'PA',
+    'PB',
+    'PE',
+    'PI',
+    'PR',
+    'RJ',
+    'RN',
+    'RO',
+    'RR',
+    'RS',
+    'SC',
+    'SE',
+    'SP',
+    'TO',
   ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final filters  = ref.watch(tripsFiltersNotifierProvider);
+    final filters = ref.watch(tripsFiltersNotifierProvider);
     final notifier = ref.read(tripsFiltersNotifierProvider.notifier);
-    final tt = Theme.of(context).textTheme;
+    final tt = context.appText;
 
     return Container(
       decoration: const BoxDecoration(
@@ -532,7 +556,9 @@ class _FiltrosSheet extends ConsumerWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.fromLTRB(
-        20, 20, 20,
+        20,
+        20,
+        20,
         20 + MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Column(
@@ -542,7 +568,8 @@ class _FiltrosSheet extends ConsumerWidget {
           // Handle
           Center(
             child: Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
                 color: AppColors.sand,
                 borderRadius: BorderRadius.circular(2),
@@ -577,7 +604,8 @@ class _FiltrosSheet extends ConsumerWidget {
                 onTap: () => notifier.setEstado(selected ? null : uf),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     color: selected ? AppColors.forest : Colors.white,
                     borderRadius: BorderRadius.circular(10),
@@ -658,7 +686,7 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
+    final tt = context.appText;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -713,7 +741,7 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
+    final tt = context.appText;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -727,7 +755,9 @@ class _ErrorState extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              isAuth ? 'Sessão expirada' : 'Não foi possível carregar as viagens',
+              isAuth
+                  ? 'Sessão expirada'
+                  : 'Não foi possível carregar as viagens',
               style: tt.headlineSmall,
               textAlign: TextAlign.center,
             ),

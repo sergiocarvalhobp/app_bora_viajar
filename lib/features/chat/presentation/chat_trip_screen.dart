@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/router/trip_navigation.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/forest_hero_background.dart';
 import '../../../core/ui/app_avatar.dart';
 import '../../auth/domain/user_model.dart';
 import '../../auth/presentation/auth_provider.dart';
@@ -81,14 +82,24 @@ class _ChatTripScreenState extends ConsumerState<ChatTripScreen> {
       ),
       error: (e, _) => Scaffold(
         appBar: AppBar(
-          backgroundColor: AppColors.forest,
+          backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
+          elevation: 0,
+          flexibleSpace: const ForestHeroBackground(),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Colors.white),
             onPressed: () => context.pop(),
           ),
         ),
-        body: Center(child: Text('Erro ao carregar viagem: $e')),
+        body: Center(
+          child: Text(
+            'Erro ao carregar viagem: $e',
+            style: const TextStyle(
+              fontFamily: 'Nunito',
+              color: AppColors.bark,
+            ),
+          ),
+        ),
       ),
       data: (trip) {
         if (!trip.canAccessChat(currentUser?.id)) {
@@ -202,11 +213,12 @@ class _ChatLockedScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.cream,
       appBar: AppBar(
-        backgroundColor: AppColors.forest,
+        backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
         elevation: 0,
+        flexibleSpace: const ForestHeroBackground(),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Colors.white),
           onPressed: () => context.pop(),
         ),
         title: Text(
@@ -292,11 +304,12 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      backgroundColor: AppColors.forest,
+      backgroundColor: Colors.transparent,
       foregroundColor: Colors.white,
       elevation: 0,
+      flexibleSpace: const ForestHeroBackground(),
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Colors.white),
         onPressed: () => context.pop(),
       ),
       title: tripAsync.when(
@@ -322,7 +335,7 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
             Text(
               trip.isTripFinished
                   ? 'Viagem encerrada · somente leitura'
-                  : '${trip.participantesCount} participante${trip.participantesCount != 1 ? 's' : ''}',
+                  : '${trip.pessoasNoGrupo} participante${trip.pessoasNoGrupo != 1 ? 's' : ''}',
               style: TextStyle(
                 fontFamily: 'Nunito',
                 fontSize: 12,
@@ -335,7 +348,7 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
       actions: [
         // Botão para ver detalhes da viagem
         IconButton(
-          icon: const Icon(Icons.info_outline_rounded, size: 22),
+          icon: const Icon(Icons.info_outline_rounded, size: 22, color: Colors.white),
           onPressed: () => openTripDetails(context, tripId),
         ),
       ],

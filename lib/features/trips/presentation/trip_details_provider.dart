@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../auth/presentation/auth_provider.dart';
 import '../data/trips_repository.dart';
+import '../domain/organizer_trip_review.dart';
 import '../domain/trip_model.dart';
 import '../domain/participant_model.dart';
 import 'trips_provider.dart';
@@ -90,12 +91,20 @@ class OrganizerRatingNotifier extends _$OrganizerRatingNotifier {
       );
       state = const AsyncData(null);
       ref.invalidate(tripDetailsProvider(tripId));
+      ref.invalidate(tripOrganizerReviewsProvider(tripId));
     } catch (e, st) {
       state = AsyncError(e, st);
       rethrow;
     }
   }
 }
+
+// ── Testemunhos / notas da viagem (após encerrar) ───────────────────────────
+
+final tripOrganizerReviewsProvider = FutureProvider.autoDispose
+    .family<OrganizerTripReviewsPage, int>((ref, tripId) {
+  return ref.read(tripsRepositoryProvider).listarAvaliacoesViagem(tripId);
+});
 
 // ── Selector: o usuário atual é o líder desta viagem? ─────────────────────────
 

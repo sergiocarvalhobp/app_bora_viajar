@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/router/trip_navigation.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/ui/bv_forest_app_bar.dart';
 import '../../../core/widgets/app_notch_shell.dart';
 import '../domain/trip_model.dart';
 import '../data/trips_repository.dart';
@@ -146,29 +149,24 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
   Widget build(BuildContext context) {
     final form    = ref.watch(createTripNotifierProvider);
     final notif   = ref.read(createTripNotifierProvider.notifier);
-    final tt      = Theme.of(context).textTheme;
+    final tt      = context.appText;
 
-    return Scaffold(
-      backgroundColor: AppColors.cream,
-      appBar: AppBar(
-        backgroundColor: AppColors.forest,
-        foregroundColor: Colors.white,
-        automaticallyImplyLeading: false,
-        title: const Text('Criar viagem',
-            style: TextStyle(
-              fontFamily: 'DMSerifDisplay',
-              fontSize: 20,
-              color: Colors.white,
-            )),
-        elevation: 0,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView(
-        controller: _scroll,
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-        children: [
+    final bottomInset = AppNotchShell.bottomBarClearance(context);
+
+    return Theme(
+      data: AppTheme.light(),
+      child: Scaffold(
+        backgroundColor: AppColors.cream,
+        resizeToAvoidBottomInset: true,
+        appBar: const BvForestAppBar(
+          title: 'Criar viagem',
+          automaticallyImplyLeading: false,
+        ),
+        body: ListView(
+          controller: _scroll,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset),
+          children: [
 
           // ── Tipo ─────────────────────────────────────────────────────
           const _SectionLabel('Qual é o seu perfil nesta viagem?'),
@@ -296,61 +294,37 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
             ),
             const SizedBox(height: 16),
           ],
-        ],
-            ),
-          ),
 
-          // Botão fixo acima do menu inferior
-          Container(
+          SizedBox(
+            height: 54,
             width: double.infinity,
-            padding: EdgeInsets.fromLTRB(
-              20,
-              12,
-              20,
-              12 + AppNotchShell.bottomBarClearance(context),
-            ),
-            decoration: BoxDecoration(
-              color: AppColors.cream,
-              border: const Border(top: BorderSide(color: AppColors.sand)),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.bark.withOpacity(0.06),
-                  blurRadius: 12,
-                  offset: const Offset(0, -4),
-                ),
-              ],
-            ),
-            child: SizedBox(
-              height: 54,
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: form.isValid && !form.isSubmitting
-                    ? () => notif.submit(context)
-                    : null,
-                icon: form.isSubmitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation(Colors.white),
-                        ),
-                      )
-                    : const Icon(Icons.rocket_launch_outlined, size: 18),
-                label: Text(
-                    form.isSubmitting ? 'Criando...' : 'Publicar viagem'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.terra,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+            child: ElevatedButton.icon(
+              onPressed: form.isValid && !form.isSubmitting
+                  ? () => notif.submit(context)
+                  : null,
+              icon: form.isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.rocket_launch_outlined, size: 18),
+              label: Text(
+                  form.isSubmitting ? 'Criando...' : 'Publicar viagem'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.terra,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -363,7 +337,7 @@ class _SectionLabel extends StatelessWidget {
   final String text;
   @override
   Widget build(BuildContext context) => Text(text,
-      style: Theme.of(context).textTheme.titleSmall);
+      style: context.appText.titleSmall);
 }
 
 class _BvInput extends StatelessWidget {
@@ -393,9 +367,27 @@ class _BvInput extends StatelessWidget {
       style: const TextStyle(fontFamily: 'Nunito', fontSize: 14,
           color: AppColors.bark),
       decoration: InputDecoration(
+        filled: true,
+        fillColor: Colors.white,
         hintText: hint,
         hintStyle: const TextStyle(fontFamily: 'Nunito', fontSize: 14,
             color: AppColors.barkMuted),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.sand, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.forest, width: 2),
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.sand, width: 1),
+        ),
       ),
     );
   }
@@ -508,13 +500,7 @@ class _DateRangePicker extends StatelessWidget {
           ? DateTimeRange(start: dataInicio!, end: dataFim!)
           : null,
       builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.light(
-            primary: AppColors.forest,
-            onPrimary: Colors.white,
-            surface: Colors.white,
-          ),
-        ),
+        data: AppTheme.light(),
         child: child!,
       ),
     );

@@ -4,6 +4,9 @@ abstract final class AppConstants {
   /// Nome do cookie / chave no SecureStorage (JWT de sessão do backend).
   static const sessionKey = 'app_session_id';
 
+  /// Header alternativo (alguns proxies repassam melhor que `Authorization`).
+  static const sessionHeader = 'X-App-Session';
+
   // ── Auth0 ─────────────────────────────────────────────────────────────────
   /// Client ID público (Native / SPA no Auth0).
   static const auth0ClientId = String.fromEnvironment(

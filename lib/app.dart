@@ -17,8 +17,7 @@ class BoraViajarApp extends ConsumerWidget {
 
       // ── Tema ──────────────────────────────────────────────────────────────
       theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.light,
 
       // ── Localização pt-BR ─────────────────────────────────────────────────
       locale: const Locale('pt', 'BR'),

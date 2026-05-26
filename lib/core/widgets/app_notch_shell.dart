@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_theme.dart';
 
 /// Shell com 4 abas: Explorar · Minhas viagens · Criar · Perfil.
 class AppNotchShell extends StatefulWidget {
@@ -59,7 +60,7 @@ class _AppNotchShellState extends State<AppNotchShell> {
     final hideBottomChrome = AppNotchShell.isChatRoute(context);
 
     return Theme(
-      data: Theme.of(context).copyWith(
+      data: AppTheme.light().copyWith(
         scaffoldBackgroundColor: Colors.white,
       ),
       child: Scaffold(
@@ -68,67 +69,70 @@ class _AppNotchShellState extends State<AppNotchShell> {
         body: widget.shell,
         bottomNavigationBar: hideBottomChrome
             ? null
-            : AnimatedNotchBottomBar(
-                notchBottomBarController: _notchController,
-                color: Colors.white,
-                notchColor: AppColors.terra,
-                showLabel: true,
-                showShadow: true,
-                removeMargins: false,
-                durationInMilliSeconds: 300,
-                itemLabelStyle: const TextStyle(
-                  fontFamily: 'Nunito',
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.barkMuted,
+            : SafeArea(
+                bottom: true,
+                child: AnimatedNotchBottomBar(
+                  notchBottomBarController: _notchController,
+                  color: Colors.white,
+                  notchColor: AppColors.terra,
+                  showLabel: true,
+                  showShadow: true,
+                  removeMargins: false,
+                  durationInMilliSeconds: 300,
+                  itemLabelStyle: const TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.barkMuted,
+                  ),
+                  bottomBarItems: const [
+                    BottomBarItem(
+                      inActiveItem: _ShellNavIcon(
+                        icon: Icons.explore_outlined,
+                        active: false,
+                      ),
+                      activeItem: _ShellNavIcon(
+                        icon: Icons.explore,
+                        active: true,
+                      ),
+                      itemLabel: 'Explorar',
+                    ),
+                    BottomBarItem(
+                      inActiveItem: _ShellNavIcon(
+                        icon: Icons.history_outlined,
+                        active: false,
+                      ),
+                      activeItem: _ShellNavIcon(
+                        icon: Icons.history,
+                        active: true,
+                      ),
+                      itemLabel: 'Minhas',
+                    ),
+                    BottomBarItem(
+                      inActiveItem: _ShellNavIcon(
+                        icon: Icons.luggage_outlined,
+                        active: false,
+                      ),
+                      activeItem: _ShellNavIcon(
+                        icon: Icons.luggage,
+                        active: true,
+                      ),
+                      itemLabel: 'Criar',
+                    ),
+                    BottomBarItem(
+                      inActiveItem: _ShellNavIcon(
+                        icon: Icons.person_outline,
+                        active: false,
+                      ),
+                      activeItem: _ShellNavIcon(
+                        icon: Icons.person,
+                        active: true,
+                      ),
+                      itemLabel: 'Perfil',
+                    ),
+                  ],
+                  onTap: _onTabTap,
                 ),
-                bottomBarItems: const [
-                  BottomBarItem(
-                    inActiveItem: _ShellNavIcon(
-                      icon: Icons.explore_outlined,
-                      active: false,
-                    ),
-                    activeItem: _ShellNavIcon(
-                      icon: Icons.explore,
-                      active: true,
-                    ),
-                    itemLabel: 'Explorar',
-                  ),
-                  BottomBarItem(
-                    inActiveItem: _ShellNavIcon(
-                      icon: Icons.history_outlined,
-                      active: false,
-                    ),
-                    activeItem: _ShellNavIcon(
-                      icon: Icons.history,
-                      active: true,
-                    ),
-                    itemLabel: 'Minhas',
-                  ),
-                  BottomBarItem(
-                    inActiveItem: _ShellNavIcon(
-                      icon: Icons.luggage_outlined,
-                      active: false,
-                    ),
-                    activeItem: _ShellNavIcon(
-                      icon: Icons.luggage,
-                      active: true,
-                    ),
-                    itemLabel: 'Criar',
-                  ),
-                  BottomBarItem(
-                    inActiveItem: _ShellNavIcon(
-                      icon: Icons.person_outline,
-                      active: false,
-                    ),
-                    activeItem: _ShellNavIcon(
-                      icon: Icons.person,
-                      active: true,
-                    ),
-                    itemLabel: 'Perfil',
-                  ),
-                ],
-                onTap: _onTabTap,
               ),
       ),
     );

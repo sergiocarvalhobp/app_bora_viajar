@@ -6,7 +6,9 @@ import '../../../core/app_constants.dart';
 import '../../../core/router/trip_navigation.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/errors/error_handler.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/bv_forest_app_bar.dart';
 import '../domain/notification_model.dart';
 
 part 'notifications_screen.g.dart';
@@ -69,18 +71,25 @@ class NotificationsScreen extends ConsumerWidget {
     final async  = ref.watch(notificationsProvider);
     final notif  = ref.read(notificationsNotifierProvider.notifier);
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) closeNotifications(context);
+      },
+      child: Scaffold(
       backgroundColor: AppColors.cream,
-      appBar: AppBar(
-        backgroundColor: AppColors.forest,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('Notificações',
-            style: TextStyle(
-              fontFamily: 'DMSerifDisplay',
-              fontSize: 20,
-              color: Colors.white,
-            )),
+      appBar: BvForestAppBar(
+        title: 'Notificações',
+        automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 18,
+            color: Colors.white,
+          ),
+          tooltip: 'Voltar',
+          onPressed: () => closeNotifications(context),
+        ),
         actions: [
           async.maybeWhen(
             data: (list) => list.any((n) => !n.lida)
@@ -124,6 +133,7 @@ class NotificationsScreen extends ConsumerWidget {
           );
         },
       ),
+    ),
     );
   }
 }
@@ -141,7 +151,7 @@ class _NotificationItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final n  = notification;
-    final tt = Theme.of(context).textTheme;
+    final tt = context.appText;
     final isNew = !n.lida;
 
     return InkWell(
@@ -248,7 +258,7 @@ class _EmptyState extends StatelessWidget {
           size: 64, color: AppColors.sand),
       const SizedBox(height: 16),
       Text('Nenhuma notificação',
-          style: Theme.of(context).textTheme.headlineSmall),
+          style: context.appText.headlineSmall),
       const SizedBox(height: 8),
       const Text('Fique por dentro de novas viagens e pedidos.',
           textAlign: TextAlign.center,

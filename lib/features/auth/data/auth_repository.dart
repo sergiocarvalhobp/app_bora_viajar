@@ -289,6 +289,21 @@ class AuthRepository {
     }
   }
 
+  /// Confirma que requisições POST chegam autenticadas ao servidor (proxy/nginx).
+  Future<void> verifyPostSession() async {
+    try {
+      AuthDebug.log('repo', 'POST /auth/session-check…');
+      final response =
+          await _dio.post('${AppConstants.restApiPrefix}/auth/session-check');
+      _throwIfHttpError(response);
+      AuthDebug.log('repo', '/auth/session-check OK');
+    } catch (e, st) {
+      AuthDebug.log('repo', '/auth/session-check falhou: $e');
+      if (kDebugMode) AuthDebug.log('repo', '$st');
+      throw ErrorHandler.handle(e);
+    }
+  }
+
   Future<UserModel?> _getMeViaRootDomainFallback() async {
     final token = await _session.readToken();
     if (token == null || token.isEmpty) return null;
@@ -341,9 +356,25 @@ class AuthRepository {
       await _dio.post(_logoutPath).timeout(const Duration(seconds: 5));
     } catch (_) {
       // best-effort
-    } finally {
-      await _session.deleteToken();
     }
+
+    if (AppEnv.auth0Domain.trim().isNotEmpty) {
+      try {
+        final issuer = AppEnv.auth0Domain.startsWith('http')
+            ? AppEnv.auth0Domain
+            : 'https://${AppEnv.auth0Domain}';
+        await _appAuth.endSession(
+          EndSessionRequest(
+            issuer: issuer,
+            postLogoutRedirectUrl: AppConstants.auth0RedirectUri,
+          ),
+        );
+      } catch (_) {
+        // browser / sessão Auth0 — best-effort
+      }
+    }
+
+    await _session.deleteToken();
   }
 
   Future<UserModel?> tryRestoreSession() async {

@@ -1,10 +1,10 @@
 name: boraviajar_app
 description: Conecte-se com pessoas que planejam a mesma viagem pelo Brasil.
-publish_to: 'none'
-version: 1.0.0+1
+publish_to: "none"
+version: 1.0.0+4
 
 environment:
-  sdk: '>=3.3.0 <4.0.0'
+  sdk: ">=3.3.0 <4.0.0"
 
 dependencies:
   flutter:
@@ -39,10 +39,10 @@ dependencies:
   google_maps_flutter: ^2.9.0
 
   # ── Utilitários ────────────────────────────────────────────────────────────
-  intl: ^0.19.0           # formatação de datas pt-BR
-  shimmer: ^3.0.0         # skeleton loader
+  intl: ^0.19.0 # formatação de datas pt-BR
+  shimmer: ^3.0.0 # skeleton loader
   flutter_svg: ^2.0.10
-  equatable: ^2.0.5       # comparação de objetos/models
+  equatable: ^2.0.5 # comparação de objetos/models
   animated_notch_bottom_bar: 1.0.0
 
 dev_dependencies:

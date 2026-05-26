@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/avatar_image_provider.dart';
 import '../../../core/ui/organizer_rating_stars.dart';
@@ -83,10 +84,10 @@ class _SheetBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
+    final tt = context.appText;
     final bio = user.bio?.trim();
     final hasBio = bio != null && bio.isNotEmpty;
-    final instagram = user.instagram?.trim();
+    final instagramHandle = user.instagramHandle;
 
     return ListView(
       controller: scrollController,
@@ -212,7 +213,7 @@ class _SheetBody extends StatelessWidget {
               ],
             ),
           ],
-          if (instagram != null && instagram.isNotEmpty) ...[
+          if (instagramHandle != null) ...[
             const SizedBox(height: 12),
             Row(
               children: [
@@ -224,7 +225,7 @@ class _SheetBody extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    instagram.startsWith('@') ? instagram : '@$instagram',
+                    instagramHandle,
                     style: tt.bodyMedium?.copyWith(
                       color: AppColors.terra,
                       fontWeight: FontWeight.w600,

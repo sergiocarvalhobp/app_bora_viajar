@@ -5,14 +5,19 @@ import 'package:go_router/go_router.dart';
 import '../../../core/errors/app_exception.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/router/trip_navigation.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_avatar.dart';
 import '../../../core/ui/destination_image_resolver.dart';
 import '../../../core/ui/interactive_organizer_rating.dart';
+import '../../../core/ui/bv_forest_app_bar.dart';
+import '../../../core/ui/forest_hero_background.dart';
 import '../../../core/ui/organizer_rating_stars.dart';
+import '../../auth/data/auth_repository.dart';
 import '../../auth/domain/user_model.dart';
 import '../../auth/presentation/auth_provider.dart';
 import '../../profile/presentation/user_profile_preview_sheet.dart';
+import '../domain/organizer_trip_review.dart';
 import '../domain/participant_model.dart';
 import '../domain/trip_model.dart';
 import '../presentation/trip_details_provider.dart';
@@ -53,14 +58,15 @@ class _TripDetailsBodyState extends ConsumerState<_TripDetailsBody> {
   @override
   void initState() {
     super.initState();
-    _selectedStars = trip.myOrganizerRating ?? 0;
+    _selectedStars = widget.trip.myOrganizerRating ?? 0;
     _testimonyController =
-        TextEditingController(text: trip.myOrganizerTestimony ?? '');
+        TextEditingController(text: widget.trip.myOrganizerTestimony ?? '');
   }
 
   @override
   void didUpdateWidget(covariant _TripDetailsBody oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final trip = ref.read(tripDetailsProvider(widget.trip.id)).value ?? widget.trip;
     if (trip.myOrganizerRating != null) {
       _selectedStars = trip.myOrganizerRating!;
     }
@@ -76,10 +82,32 @@ class _TripDetailsBodyState extends ConsumerState<_TripDetailsBody> {
     super.dispose();
   }
 
-  bool _showReviewMode(int? userId, bool isLider) =>
-      !isLider &&
-      trip.isConfirmado &&
-      trip.canRateOrganizerNow(userId);
+
+  bool _isConfirmedParticipant(TripModel trip, int? userId) {
+    if (userId == null) return false;
+    if (trip.isConfirmado) return true;
+    final participants =
+        ref.read(tripParticipantsProvider(widget.trip.id)).value;
+    return participants?.any((p) => p.userId == userId && p.isConfirmado) ??
+        false;
+  }
+
+  /// Formulário de avaliação (só antes de salvar).
+  bool _reviewEditMode(TripModel trip, int? userId, bool isLider) {
+    if (isLider || userId == null) return false;
+    if (!trip.isTripEndedForReview) return false;
+    if (trip.myOrganizerRating != null) return false;
+    return trip.canRateOrganizerNow(userId);
+  }
+
+  /// Lista de testemunhos (organizador + participantes que já avaliaram).
+  bool _showReviewsFeed(TripModel trip, int? userId, bool isLider) {
+    if (!trip.isTripEndedForReview) return false;
+    if (isLider) return true;
+    if (userId == null) return false;
+    if (trip.myOrganizerRating != null) return true;
+    return _isConfirmedParticipant(trip, userId);
+  }
 
   void _showSnack(String message, {bool isError = false}) {
     if (!mounted) return;
@@ -105,9 +133,28 @@ class _TripDetailsBodyState extends ConsumerState<_TripDetailsBody> {
       _showSnack('Escolha de 1 a 5 estrelas para avaliar a viagem.', isError: true);
       return;
     }
+
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null) {
+      _showSnack('Faça login para salvar a avaliação.', isError: true);
+      return;
+    }
+
     try {
+      await ref.read(authRepositoryProvider).getMe();
+      final freshTrip =
+          await ref.refresh(tripDetailsProvider(widget.trip.id).future);
+      if (!freshTrip.canRateOrganizerNow(currentUser.id)) {
+        _showSnack(
+          'Você ainda não pode avaliar esta viagem. Aguarde confirmação do '
+          'organizador e o fim da viagem.',
+          isError: true,
+        );
+        return;
+      }
+
       await ref
-          .read(organizerRatingNotifierProvider(trip.id).notifier)
+          .read(organizerRatingNotifierProvider(widget.trip.id).notifier)
           .submit(_selectedStars, testemunho: _testimonyController.text);
       if (!mounted) return;
       _showSnack('Avaliação da viagem salva com sucesso!');
@@ -116,22 +163,22 @@ class _TripDetailsBodyState extends ConsumerState<_TripDetailsBody> {
       final msg = e is AppException
           ? e.message
           : ErrorHandler.handle(e).message;
-      _showSnack(
-        msg.contains('Acesso negado') || msg.contains('Sessão')
-            ? '$msg Faça login novamente e tente outra vez.'
-            : msg,
-        isError: true,
-      );
+      _showSnack(msg, isError: true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final trip = ref.watch(tripDetailsProvider(widget.trip.id)).value ??
+        widget.trip;
     final currentUser   = ref.watch(currentUserProvider);
     final isLider       = ref.watch(isLiderDaViagemProvider(trip.id));
     final participationState = ref.watch(tripParticipationNotifierProvider(trip.id));
     final ratingState = ref.watch(organizerRatingNotifierProvider(trip.id));
-    final reviewMode = _showReviewMode(currentUser?.id, isLider);
+    final reviewEditMode =
+        _reviewEditMode(trip, currentUser?.id, isLider);
+    final showReviewsFeed =
+        _showReviewsFeed(trip, currentUser?.id, isLider);
 
     ref.listen(tripParticipationNotifierProvider(trip.id), (prev, next) {
       if (!mounted) return;
@@ -161,15 +208,22 @@ class _TripDetailsBodyState extends ConsumerState<_TripDetailsBody> {
           SliverAppBar(
             expandedHeight: 260,
             pinned: true,
-            backgroundColor: AppColors.forest,
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
             elevation: 0,
             leading: _BackButton(),
             actions: [
               if (isLider) _EditButton(tripId: trip.id),
               _ShareButton(trip: trip),
             ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: _HeroBackground(trip: trip),
+            flexibleSpace: Stack(
+              fit: StackFit.expand,
+              children: [
+                const ForestHeroBackground(),
+                FlexibleSpaceBar(
+                  background: _HeroBackground(trip: trip),
+                ),
+              ],
             ),
           ),
 
@@ -197,13 +251,18 @@ class _TripDetailsBodyState extends ConsumerState<_TripDetailsBody> {
                 if (trip.lider != null)
                   _LiderSection(lider: trip.lider!),
 
-                if (reviewMode) ...[
+                if (reviewEditMode) ...[
                   const _Divider(),
-                  _TripReviewSection(
+                  _TripReviewEditSection(
                     selectedStars: _selectedStars,
                     testimonyController: _testimonyController,
                     onStarsChanged: (s) => setState(() => _selectedStars = s),
                   ),
+                ],
+
+                if (showReviewsFeed) ...[
+                  const _Divider(),
+                  _TripOrganizerReviewsSection(tripId: trip.id),
                 ],
 
                 const _Divider(),
@@ -236,7 +295,7 @@ class _TripDetailsBodyState extends ConsumerState<_TripDetailsBody> {
         isLider: isLider,
         canAccessChat: trip.canAccessChat(currentUser?.id),
         participationState: participationState,
-        reviewMode: reviewMode,
+        reviewEditMode: reviewEditMode,
         reviewLoading: ratingState is AsyncLoading,
         canSaveReview: _selectedStars >= 1,
         onParticipar: () =>
@@ -289,6 +348,7 @@ class _HeroBackground extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
+        const ForestHeroBackground(),
         Image.asset(
           assetPath,
           fit: BoxFit.cover,
@@ -298,6 +358,7 @@ class _HeroBackground extends StatelessWidget {
             errorBuilder: (_, __, ___) => _fallbackBackground(),
           ),
         ),
+        const CustomPaint(painter: ForestDotPatternPainter()),
 
         Container(color: Colors.black.withOpacity(0.22)),
 
@@ -375,7 +436,7 @@ class _TripHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
+    final tt = context.appText;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Row(
@@ -434,7 +495,7 @@ class _InfoSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Informações',
-              style: Theme.of(context).textTheme.titleLarge),
+              style: context.appText.titleLarge),
           const SizedBox(height: 14),
 
           if (trip.estado != null)
@@ -456,10 +517,10 @@ class _InfoSection extends StatelessWidget {
           const SizedBox(height: 10),
           _InfoRow(
             icon: Icons.people_outline,
-            label: 'Participantes',
+            label: trip.maxVagas != null ? 'Vagas confirmadas' : 'Participantes',
             value: trip.maxVagas != null
-                ? '${trip.participantesCount} / ${trip.maxVagas}'
-                : '${trip.participantesCount} pessoas',
+                ? '${trip.confirmadosOcupandoVaga} / ${trip.maxVagas}'
+                : '${trip.pessoasNoGrupo} pessoas',
           ),
 
           const SizedBox(height: 10),
@@ -486,7 +547,7 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
+    final tt = context.appText;
     return Row(
       children: [
         Container(
@@ -527,7 +588,7 @@ class _DescricaoSectionState extends State<_DescricaoSection> {
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
+    final tt = context.appText;
     final descricao = widget.trip.descricao;
     final isLonga = descricao.length > 200;
 
@@ -592,7 +653,7 @@ class _LiderSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tt = Theme.of(context).textTheme;
+    final tt = context.appText;
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -680,8 +741,142 @@ class _LiderSection extends ConsumerWidget {
   }
 }
 
-class _TripReviewSection extends StatelessWidget {
-  const _TripReviewSection({
+class _TripOrganizerReviewsSection extends ConsumerWidget {
+  const _TripOrganizerReviewsSection({required this.tripId});
+
+  final int tripId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(tripOrganizerReviewsProvider(tripId));
+    final tt = context.appText;
+
+    return async.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(24),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Text(
+          'Não foi possível carregar as avaliações.',
+          style: tt.bodySmall?.copyWith(color: AppColors.barkMuted),
+        ),
+      ),
+      data: (page) {
+        if (page.reviews.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.all(20),
+            child: Text(
+              'Nenhuma avaliação publicada nesta viagem ainda.',
+              style: tt.bodySmall?.copyWith(color: AppColors.barkMuted),
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Avaliações da viagem',
+                style: tt.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              if (page.tripReviewCount > 0) ...[
+                const SizedBox(height: 4),
+                Text(
+                  '${page.tripReviewCount} '
+                  '${page.tripReviewCount == 1 ? 'participante avaliou' : 'participantes avaliaram'}',
+                  style: tt.bodySmall?.copyWith(color: AppColors.barkMuted),
+                ),
+              ],
+              const SizedBox(height: 16),
+              ...page.reviews.map(
+                (r) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _TripReviewCard(review: r),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TripReviewCard extends StatelessWidget {
+  const _TripReviewCard({required this.review});
+
+  final OrganizerTripReview review;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = context.appText;
+    final name = review.rater?.name ?? 'Participante';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: review.isMine ? AppColors.forest.withOpacity(0.35) : AppColors.sand,
+          width: review.isMine ? 1.5 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              AppAvatar(
+                foto: review.rater?.foto,
+                name: review.rater?.name,
+                initials: review.rater?.initials,
+                radius: 18,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      review.isMine ? 'Você' : name,
+                      style: tt.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    OrganizerRatingStars(
+                      rating: review.stars.toDouble(),
+                      size: 16,
+                      filledLabelPrefix: 'Nota',
+                      emptyLabel: '',
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (review.testemunho != null &&
+              review.testemunho!.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              review.testemunho!.trim(),
+              style: tt.bodyMedium?.copyWith(color: AppColors.bark),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TripReviewEditSection extends StatelessWidget {
+  const _TripReviewEditSection({
     required this.selectedStars,
     required this.testimonyController,
     required this.onStarsChanged,
@@ -693,7 +888,7 @@ class _TripReviewSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
+    final tt = context.appText;
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -803,7 +998,12 @@ class _ParticipantesSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final participantesAsync = ref.watch(tripParticipantsProvider(tripId));
-    final tt = Theme.of(context).textTheme;
+    final tripAsync = ref.watch(tripDetailsProvider(tripId));
+    final podeConfirmarMais = tripAsync.maybeWhen(
+      data: (t) => t.temVagasDisponiveis,
+      orElse: () => false,
+    );
+    final tt = context.appText;
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -876,11 +1076,12 @@ class _ParticipantesSection extends ConsumerWidget {
                   participante: p,
                   isLider: isLider,
                   isMe: p.userId == currentUserId,
-                  onConfirmar: isLider && p.isInteressado
+                  onConfirmar: isLider && p.isInteressado && podeConfirmarMais
                       ? () => ref
                             .read(tripParticipationNotifierProvider(tripId).notifier)
                             .confirmarParticipante(p.id)
                       : null,
+                  vagasLotadas: isLider && p.isInteressado && !podeConfirmarMais,
                 )),
                 ],
               );
@@ -898,16 +1099,18 @@ class _ParticipanteItem extends StatelessWidget {
     required this.isLider,
     required this.isMe,
     this.onConfirmar,
+    this.vagasLotadas = false,
   });
 
   final ParticipantModel participante;
   final bool isLider;
   final bool isMe;
   final VoidCallback? onConfirmar;
+  final bool vagasLotadas;
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
+    final tt = context.appText;
     final user = participante.user;
 
     return Padding(
@@ -948,7 +1151,6 @@ class _ParticipanteItem extends StatelessWidget {
             ),
           ),
 
-          // Botão confirmar (só para o líder)
           if (onConfirmar != null)
             TextButton(
               onPressed: onConfirmar,
@@ -966,6 +1168,14 @@ class _ParticipanteItem extends StatelessWidget {
                       fontFamily: 'Nunito',
                       fontSize: 12,
                       fontWeight: FontWeight.w700)),
+            )
+          else if (vagasLotadas)
+            Text(
+              'Vagas lotadas',
+              style: tt.labelSmall?.copyWith(
+                color: AppColors.barkMuted,
+                fontWeight: FontWeight.w600,
+              ),
             ),
         ],
       ),
@@ -981,7 +1191,7 @@ class _BottomAction extends StatelessWidget {
     required this.isLider,
     required this.canAccessChat,
     required this.participationState,
-    required this.reviewMode,
+    required this.reviewEditMode,
     required this.reviewLoading,
     required this.canSaveReview,
     required this.onParticipar,
@@ -994,7 +1204,7 @@ class _BottomAction extends StatelessWidget {
   final bool isLider;
   final bool canAccessChat;
   final AsyncValue<void> participationState;
-  final bool reviewMode;
+  final bool reviewEditMode;
   final bool reviewLoading;
   final bool canSaveReview;
   final VoidCallback onParticipar;
@@ -1034,7 +1244,7 @@ class _BottomAction extends StatelessWidget {
               trip: trip,
               isLider: isLider,
               isLoading: isLoading,
-              reviewMode: reviewMode,
+              reviewEditMode: reviewEditMode,
               reviewLoading: reviewLoading,
               canSaveReview: canSaveReview,
               onParticipar: onParticipar,
@@ -1053,7 +1263,7 @@ class _MainActionButton extends StatelessWidget {
     required this.trip,
     required this.isLider,
     required this.isLoading,
-    required this.reviewMode,
+    required this.reviewEditMode,
     required this.reviewLoading,
     required this.canSaveReview,
     required this.onParticipar,
@@ -1064,7 +1274,7 @@ class _MainActionButton extends StatelessWidget {
   final TripModel trip;
   final bool isLider;
   final bool isLoading;
-  final bool reviewMode;
+  final bool reviewEditMode;
   final bool reviewLoading;
   final bool canSaveReview;
   final VoidCallback onParticipar;
@@ -1073,7 +1283,7 @@ class _MainActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (reviewMode) {
+    if (reviewEditMode) {
       return ElevatedButton.icon(
         onPressed: reviewLoading || !canSaveReview ? null : onSaveReview,
         icon: reviewLoading
@@ -1136,19 +1346,6 @@ class _MainActionButton extends StatelessWidget {
           ),
           minimumSize: const Size.fromHeight(52),
         ),
-      );
-    }
-
-    // Sem vagas
-    if (!trip.temVagasDisponiveis) {
-      return ElevatedButton(
-        onPressed: null,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.sand,
-          foregroundColor: AppColors.barkMuted,
-          minimumSize: const Size.fromHeight(52),
-        ),
-        child: const Text('Viagem lotada'),
       );
     }
 
@@ -1331,11 +1528,12 @@ class _VagasIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final vagas = trip.vagasDisponiveis!;
-    final pct   = vagas / trip.maxVagas!;
-    final color = pct < 0.2
+    final confirmados = trip.confirmadosOcupandoVaga;
+    final max = trip.maxVagas!;
+    final pct = max > 0 ? confirmados / max : 0.0;
+    final color = pct >= 1.0
         ? AppColors.error
-        : pct < 0.5
+        : pct >= 0.8
             ? AppColors.terra
             : AppColors.forest;
 
@@ -1343,7 +1541,7 @@ class _VagasIndicator extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(
-          '$vagas',
+          '$confirmados/$max',
           style: TextStyle(
             fontFamily: 'DMSerifDisplay',
             fontSize: 28,
@@ -1351,11 +1549,8 @@ class _VagasIndicator extends StatelessWidget {
           ),
         ),
         Text(
-          'vagas',
-          style: Theme.of(context)
-              .textTheme
-              .labelSmall
-              ?.copyWith(color: AppColors.barkMuted),
+          'vagas confirmadas',
+          style: context.appText.labelSmall?.copyWith(color: AppColors.barkMuted),
         ),
       ],
     );
@@ -1487,7 +1682,7 @@ class _ErrorScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Viagem')),
+      appBar: const BvForestAppBar(title: 'Viagem'),
       backgroundColor: AppColors.cream,
       body: Center(
         child: Padding(
@@ -1499,14 +1694,11 @@ class _ErrorScaffold extends StatelessWidget {
                   size: 64, color: AppColors.barkMuted),
               const SizedBox(height: 16),
               Text('Não foi possível carregar a viagem',
-                  style: Theme.of(context).textTheme.headlineSmall,
+                  style: context.appText.headlineSmall,
                   textAlign: TextAlign.center),
               const SizedBox(height: 8),
               Text(message,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppColors.barkMuted),
+                  style: context.appText.bodySmall?.copyWith(color: AppColors.barkMuted),
                   textAlign: TextAlign.center),
             ],
           ),

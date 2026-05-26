@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/errors/app_exception.dart';
 import '../../../core/router/trip_navigation.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_avatar.dart';
 import '../../../core/ui/destination_image_resolver.dart';
@@ -28,7 +29,7 @@ class TripCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tt = Theme.of(context).textTheme;
+    final tt = context.appText;
 
     return Container(
         decoration: BoxDecoration(
@@ -198,7 +199,9 @@ class TripCard extends ConsumerWidget {
                           size: 14, color: AppColors.barkMuted),
                       const SizedBox(width: 4),
                       Text(
-                        '${trip.participantesCount}',
+                        trip.maxVagas != null
+                            ? '${trip.confirmadosOcupandoVaga}/${trip.maxVagas}'
+                            : '${trip.pessoasNoGrupo}',
                         style: tt.labelMedium?.copyWith(
                           color: AppColors.barkMuted,
                         ),
@@ -267,20 +270,13 @@ class _TripCardActions extends ConsumerWidget {
     final isParticipating =
         trip.isParticipando || (assumeParticipating && !isLider);
     final canChat = trip.canAccessChat(user?.id);
-    final canParticipar = !isLider &&
-        !isParticipating &&
-        trip.temVagasDisponiveis &&
-        !trip.isTripFinished;
-    final isLotado = !isLider && !isParticipating && !trip.temVagasDisponiveis;
+    final canParticipar =
+        !isLider && !isParticipating && !trip.isTripFinished;
     final canRateEnded = trip.isConfirmado &&
         !isLider &&
         trip.isTripEndedForReview;
 
-    if (!canChat &&
-        !canParticipar &&
-        !isLotado &&
-        !isLider &&
-        !isParticipating) {
+    if (!canChat && !canParticipar && !isLider && !isParticipating) {
       return const SizedBox.shrink();
     }
 
@@ -338,14 +334,6 @@ class _TripCardActions extends ConsumerWidget {
                     onCancel: () => _confirmCancelInterest(context, notif),
                   ),
                 )
-              else if (isLotado)
-                const Expanded(
-                  child: _CardStatusChip(
-                    label: 'Viagem lotada',
-                    icon: Icons.event_busy_rounded,
-                    variant: _CardActionVariant.muted,
-                  ),
-                ),
             ],
           ),
         ),
@@ -361,10 +349,11 @@ class _TripCardActions extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Cancelar interesse?',
-            style: TextStyle(fontFamily: 'DMSerifDisplay')),
+            style: TextStyle(
+                fontFamily: 'DMSerifDisplay', color: AppColors.bark)),
         content: const Text(
           'Você deixará de aparecer como interessado nesta viagem.',
-          style: TextStyle(fontFamily: 'Nunito'),
+          style: TextStyle(fontFamily: 'Nunito', color: AppColors.bark),
         ),
         actions: [
           TextButton(
@@ -775,29 +764,28 @@ class _VagasBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final vagas = trip.vagasDisponiveis!;
-    final semVagas = vagas == 0;
+    final lotado = trip.vagasLotadas;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: semVagas
+        color: lotado
             ? const Color(0xFFFEF2F2)
             : const Color(0xFFF0FDF4),
         borderRadius: BorderRadius.circular(100),
         border: Border.all(
-          color: semVagas
+          color: lotado
               ? const Color(0xFFFCA5A5)
               : const Color(0xFF86EFAC),
         ),
       ),
       child: Text(
-        semVagas ? 'Lotado' : '$vagas vagas',
+        trip.vagasResumoLabel,
         style: TextStyle(
           fontFamily: 'Nunito',
           fontSize: 11,
           fontWeight: FontWeight.w700,
-          color: semVagas ? AppColors.error : AppColors.forest,
+          color: lotado ? AppColors.error : AppColors.forest,
         ),
       ),
     );

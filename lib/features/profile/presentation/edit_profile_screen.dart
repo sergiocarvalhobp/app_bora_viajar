@@ -11,9 +11,11 @@ import '../../../core/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/errors/app_exception.dart';
 import '../../../core/errors/error_handler.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/ui/avatar_image_provider.dart';
+import '../../../core/ui/bv_forest_app_bar.dart';
 import '../../auth/domain/user_model.dart';
 import '../../auth/presentation/auth_provider.dart';
 
@@ -283,6 +285,41 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     super.dispose();
   }
 
+  Future<void> _confirmLogout(BuildContext context) async {
+    final sair = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text(
+          'Sair da conta?',
+          style: TextStyle(fontFamily: 'DMSerifDisplay'),
+        ),
+        content: const Text(
+          'Sua sessão será encerrada e os dados locais apagados. '
+          'Será necessário entrar novamente.',
+          style: TextStyle(fontFamily: 'Nunito', height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Sair',
+              style: TextStyle(
+                color: AppColors.error,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (sair != true || !context.mounted) return;
+    await ref.read(authNotifierProvider.notifier).logout();
+  }
+
   static const _estados = [
     'AC',
     'AL',
@@ -324,16 +361,16 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       data: AppTheme.light(),
       child: Scaffold(
       backgroundColor: AppColors.cream,
-      appBar: AppBar(
-        backgroundColor: AppColors.forest,
-        foregroundColor: Colors.white,
-        title: const Text('Editar perfil',
-            style: TextStyle(
-              fontFamily: 'DMSerifDisplay',
-              fontSize: 20,
-              color: Colors.white,
-            )),
-        elevation: 0,
+      appBar: BvForestAppBar(
+        title: 'Editar perfil',
+        automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout_rounded, color: Colors.white),
+            tooltip: 'Sair da conta',
+            onPressed: () => _confirmLogout(context),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -575,7 +612,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               const SizedBox(height: 16),
               Text(
                 'Foto do perfil',
-                style: Theme.of(ctx).textTheme.titleMedium,
+                style: ctx.appText.titleMedium,
               ),
               const SizedBox(height: 8),
               ListTile(

@@ -37,6 +37,8 @@ class TripModel extends Equatable {
     this.maxVagas,
     this.lider,
     this.participantesCount = 0,
+    this.confirmadosCount,
+    this.totalParticipantes,
     this.myStatus,
     this.createdAt,
     this.tripFinished,
@@ -59,7 +61,12 @@ class TripModel extends Equatable {
 
   // Campos extras que a API retorna junto
   final UserModel? lider;
+  /// Contagem bruta da API (`participantesCount` legado pode incluir interessados).
   final int participantesCount;
+  /// Confirmados que ocupam vaga (preferir este campo quando a API enviar).
+  final int? confirmadosCount;
+  /// Total no grupo (interessados + confirmados), para ícone de pessoas.
+  final int? totalParticipantes;
   final String? myStatus; // 'interessado' | 'confirmado' | null
   final DateTime? createdAt;
 
@@ -107,12 +114,36 @@ class TripModel extends Equatable {
         currentUserId != liderId;
   }
 
+  /// Confirmados que ocupam vaga (interessado nunca conta).
+  int get confirmadosOcupandoVaga {
+    if (confirmadosCount != null) return confirmadosCount!;
+    var n = participantesCount;
+    // API legada: participantesCount inclui interessados — desconta o usuário atual.
+    if (myStatus == 'interessado' && n > 0) {
+      n = n - 1;
+    }
+    return n.clamp(0, maxVagas ?? n);
+  }
+
+  /// Pessoas no grupo (para exibição no card, não afeta vagas).
+  int get pessoasNoGrupo => totalParticipantes ?? participantesCount;
+
   /// Vagas disponíveis. null = sem limite.
-  int? get vagasDisponiveis =>
-      maxVagas != null ? (maxVagas! - participantesCount).clamp(0, maxVagas!) : null;
+  int? get vagasDisponiveis => maxVagas != null
+      ? (maxVagas! - confirmadosOcupandoVaga).clamp(0, maxVagas!)
+      : null;
 
   bool get temVagasDisponiveis =>
       vagasDisponiveis == null || vagasDisponiveis! > 0;
+
+  bool get vagasLotadas =>
+      maxVagas != null && confirmadosOcupandoVaga >= maxVagas!;
+
+  /// Ex.: "0/2 vagas" — sempre com total, cheia ou não.
+  String get vagasResumoLabel =>
+      maxVagas != null
+          ? '${confirmadosOcupandoVaga}/$maxVagas vagas'
+          : '';
 
   bool get isParticipando =>
       myStatus == 'interessado' || myStatus == 'confirmado';
@@ -189,7 +220,17 @@ class TripModel extends Equatable {
           ? _int(json['participantesCount'])
           : (json['participantes_count'] != null
               ? _int(json['participantes_count'])
-              : (json['participantCount'] != null ? _int(json['participantCount']) : 0)),
+              : 0),
+      confirmadosCount: json['confirmadosCount'] != null
+          ? _int(json['confirmadosCount'])
+          : (json['confirmados_count'] != null
+              ? _int(json['confirmados_count'])
+              : null),
+      totalParticipantes: json['totalParticipantes'] != null
+          ? _int(json['totalParticipantes'])
+          : (json['total_participantes'] != null
+              ? _int(json['total_participantes'])
+              : null),
       myStatus:           json['myStatus'] as String?,
       createdAt:          json['createdAt'] != null
                             ? DateTime.tryParse(json['createdAt'] as String)
@@ -207,7 +248,7 @@ class TripModel extends Equatable {
   List<Object?> get props => [
         id, liderId, destino, dataInicio, dataFim,
         descricao, tipo, estado, cidade, atrativo,
-        maxVagas, participantesCount, myStatus,
+        maxVagas, participantesCount, confirmadosCount, totalParticipantes, myStatus,
         tripFinished, canRateOrganizer, myOrganizerRating, myOrganizerTestimony,
       ];
 }

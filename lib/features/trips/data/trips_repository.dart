@@ -5,6 +5,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../core/app_constants.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/network/api_client.dart';
+import '../domain/organizer_trip_review.dart';
 import '../domain/participant_model.dart';
 import '../domain/trip_model.dart';
 import '../domain/trips_page.dart';
@@ -260,25 +261,49 @@ class TripsRepository {
   }) async {
     try {
       final body = {
+        'viagemId': tripId,
         'stars': stars,
         if (testemunho != null && testemunho.trim().isNotEmpty)
           'testemunho': testemunho.trim(),
       };
-      // POST preferido; fallback PUT se proxy bloquear POST (403/404/405)
-      var response = await _dio.post(
-        '$_p/trips/$tripId/organizer-rating',
+
+      // sessionToken/query/cookie vêm do AuthInterceptor (nginx pode remover headers).
+      Response<dynamic> response = await _dio.post(
+        '$_p/participantes/avaliar-organizador',
         data: body,
       );
-      final postCode = response.statusCode ?? 0;
-      if (postCode == 403 || postCode == 404 || postCode == 405) {
-        response = await _dio.put(
-          '$_p/trips/$tripId/organizer-rating',
-          data: body,
+      final code = response.statusCode ?? 0;
+      if (code == 401 || code == 404) {
+        response = await _dio.post(
+          '$_p/trips/$tripId/avaliar-organizador',
+          data: {
+            'stars': stars,
+            if (testemunho != null && testemunho.trim().isNotEmpty)
+              'testemunho': testemunho.trim(),
+          },
         );
       }
       _throwIfHttpError(response);
       final data = response.data as Map<String, dynamic>? ?? {};
       return (data['myOrganizerRating'] as num?)?.toInt() ?? stars;
+    } catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
+  /// Testemunhos e notas dos participantes nesta viagem.
+  Future<OrganizerTripReviewsPage> listarAvaliacoesViagem(int tripId) async {
+    try {
+      final response =
+          await _dio.get('$_p/trips/$tripId/organizer-ratings');
+      _throwIfHttpError(response);
+      final data = response.data;
+      if (data is! Map) {
+        return const OrganizerTripReviewsPage(reviews: []);
+      }
+      return OrganizerTripReviewsPage.fromJson(
+        Map<String, dynamic>.from(data),
+      );
     } catch (e) {
       throw ErrorHandler.handle(e);
     }

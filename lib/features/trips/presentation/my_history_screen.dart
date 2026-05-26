@@ -6,6 +6,7 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../../core/router/trip_navigation.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/bv_forest_app_bar.dart';
 import '../data/trips_repository.dart';
 import '../domain/trip_model.dart';
 import '../widgets/trip_card.dart';
@@ -62,16 +63,9 @@ class _MyHistoryScreenState extends ConsumerState<MyHistoryScreen>
 
     return Scaffold(
       backgroundColor: AppColors.cream,
-      appBar: AppBar(
-        backgroundColor: AppColors.forest,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('Minhas viagens',
-            style: TextStyle(
-              fontFamily: 'DMSerifDisplay',
-              fontSize: 20,
-              color: Colors.white,
-            )),
+      appBar: BvForestAppBar(
+        title: 'Minhas viagens',
+        automaticallyImplyLeading: false,
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppColors.terra,

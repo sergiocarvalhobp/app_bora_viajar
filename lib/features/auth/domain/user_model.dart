@@ -117,6 +117,13 @@ class UserModel extends Equatable {
           'organizerRatingCount': organizerRatingCount,
       };
 
+  /// Handle para exibir ao lado do ícone @ (sem duplicar o símbolo).
+  String? get instagramHandle {
+    final ig = instagram?.trim();
+    if (ig == null || ig.isEmpty) return null;
+    return ig.startsWith('@') ? ig.substring(1) : ig;
+  }
+
   UserModel copyWith({
     int? id,
     String? openId,

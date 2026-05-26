@@ -50,6 +50,16 @@ abstract final class ErrorHandler {
     final path = e.requestOptions.uri.path;
 
     return switch (status) {
+      401 when path.contains('/auth/session-check') => ServerException(
+          serverMessage ??
+              'Não foi possível salvar a avaliação. Faça login novamente.',
+        ),
+      401 when path.contains('avaliar-') ||
+              path.contains('organizer-rating') =>
+        ServerException(
+          serverMessage ??
+              'Não foi possível salvar a avaliação. Atualize a API no servidor.',
+        ),
       401 => AuthException(
           serverMessage ?? 'Sessão expirada. Faça login novamente.',
         ),
@@ -62,8 +72,8 @@ abstract final class ErrorHandler {
         ),
       403 when path.contains('organizer-rating') => ServerException(
           serverMessage ??
-              'Não foi possível salvar a avaliação. Faça login novamente ou '
-              'aguarde atualização da API.',
+              'Não foi possível salvar a avaliação. Só participantes confirmados '
+              'podem avaliar após o fim da viagem.',
         ),
       404 when path.contains('organizer-rating') => ServerException(
           'Avaliação indisponível: atualize a API (organizer-rating) no servidor.',
@@ -113,6 +123,10 @@ abstract final class ErrorHandler {
         // Express: { message: "..." }
         final message = body['message'];
         if (message is String && message.isNotEmpty) return message;
+
+        // Spring Boot 3 Problem Details: { detail: "..." }
+        final detail = body['detail'];
+        if (detail is String && detail.isNotEmpty) return detail;
       }
     } catch (_) {
       // Corpo não é JSON — ignora
