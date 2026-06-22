@@ -132,6 +132,14 @@ class AuthRepository {
         throw const AuthException('Login cancelado pelo usuário.');
       }
 
+      final idToken = result.idToken?.trim();
+      if (idToken != null && idToken.isNotEmpty) {
+        await _session.saveAuth0IdToken(idToken);
+        AuthDebug.log('repo', 'Auth0 idToken guardado len=${idToken.length}');
+      } else {
+        AuthDebug.log('repo', 'Auth0 sem idToken — logout federado pode falhar');
+      }
+
       if (kDebugMode) {
         AuthDebug.log('TOKEN Auth0 access_token', result.accessToken!);
       }
@@ -358,20 +366,35 @@ class AuthRepository {
       // best-effort
     }
 
-    if (AppEnv.auth0Domain.trim().isNotEmpty) {
+    final idTokenHint = (await _session.readAuth0IdToken())?.trim();
+
+    if (AppEnv.auth0Domain.trim().isNotEmpty &&
+        idTokenHint != null &&
+        idTokenHint.isNotEmpty) {
       try {
         final issuer = AppEnv.auth0Domain.startsWith('http')
             ? AppEnv.auth0Domain
             : 'https://${AppEnv.auth0Domain}';
+        AuthDebug.log('repo', 'Auth0 endSession…');
         await _appAuth.endSession(
           EndSessionRequest(
             issuer: issuer,
+            idTokenHint: idTokenHint,
             postLogoutRedirectUrl: AppConstants.auth0RedirectUri,
+            additionalParameters: {
+              'client_id': AppConstants.auth0ClientId,
+            },
           ),
         );
-      } catch (_) {
-        // browser / sessão Auth0 — best-effort
+        AuthDebug.log('repo', 'Auth0 endSession OK');
+      } catch (e) {
+        AuthDebug.log('repo', 'Auth0 endSession falhou (ignorado): $e');
       }
+    } else {
+      AuthDebug.log(
+        'repo',
+        'Auth0 endSession ignorado (sem idToken — logout só local)',
+      );
     }
 
     await _session.deleteToken();

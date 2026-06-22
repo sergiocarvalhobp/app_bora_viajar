@@ -51,6 +51,10 @@ Em Applications → seu app → **Allowed Callback URLs**, adicionar:
 ```
 br.com.boraviajar://callback
 ```
+Em **Allowed Logout URLs**, adicionar o mesmo valor (necessário para deslogar sem erro no Auth0):
+```
+br.com.boraviajar://callback
+```
 
 ### 6. API Java
 O app usa **apenas** a API REST (`api_boraviajar`): `POST /api/v1/auth/token`, `GET /api/v1/auth/me`, etc.

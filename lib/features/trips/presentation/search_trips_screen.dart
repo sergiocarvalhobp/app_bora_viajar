@@ -54,6 +54,7 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.cream,
+      resizeToAvoidBottomInset: false,
       body: CustomScrollView(
         controller: _scrollController,
         slivers: [
@@ -61,12 +62,12 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
           SliverAppBar(
             backgroundColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
-            expandedHeight: 188,
+            expandedHeight: 160,
             floating: false,
             pinned: true,
             elevation: 0,
             flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              titlePadding: const EdgeInsets.fromLTRB(16, 0, 20, 16),
               title: const Text(
                 'Explorar viagens',
                 style: TextStyle(
@@ -86,8 +87,8 @@ class _SearchTripsScreenState extends ConsumerState<SearchTripsScreen> {
                     child: _LoggedHeaderRow(user: user),
                   ),
                   Positioned(
-                    top: MediaQuery.paddingOf(context).top + 54,
-                    left: 20,
+                    top: MediaQuery.paddingOf(context).top + 70,
+                    left: 18,
                     child: Text(
                       'Encontre companheiros de viagem pelo Brasil a fora',
                       style: TextStyle(
@@ -646,11 +647,18 @@ class _FiltrosSheet extends ConsumerWidget {
               Switch(
                 value: filters.apenasComVagas,
                 onChanged: (_) => notifier.toggleApenasComVagas(),
-                thumbColor: WidgetStateProperty.resolveWith((states) {
+                thumbColor: WidgetStateProperty.all(Colors.white),
+                trackColor: WidgetStateProperty.resolveWith((states) {
                   if (states.contains(WidgetState.selected)) {
                     return AppColors.forest;
                   }
-                  return null;
+                  return AppColors.sand;
+                }),
+                trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return AppColors.forest;
+                  }
+                  return AppColors.barkMuted.withOpacity(0.35);
                 }),
               ),
             ],
@@ -667,6 +675,7 @@ class _FiltrosSheet extends ConsumerWidget {
               child: const Text('Ver resultados'),
             ),
           ),
+          const SizedBox(height: 150),
         ],
       ),
     );
@@ -674,6 +683,32 @@ class _FiltrosSheet extends ConsumerWidget {
 }
 
 // ── Estados vazios ─────────────────────────────────────────────────────────────
+
+/// Conteúdo centralizado que rola quando o teclado reduz a altura (ex.: busca).
+class _ScrollableCenteredContent extends StatelessWidget {
+  const _ScrollableCenteredContent({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(32),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: children,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState({
@@ -687,41 +722,34 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tt = context.appText;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.explore_off_outlined,
-                size: 64, color: AppColors.sand),
-            const SizedBox(height: 16),
-            Text(
-              hasFilters
-                  ? 'Nenhuma viagem com esses filtros'
-                  : 'Nenhuma viagem encontrada',
-              style: tt.headlineSmall,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              hasFilters
-                  ? 'Tente remover alguns filtros para ver mais resultados.'
-                  : 'Seja o primeiro a criar uma viagem!',
-              style: tt.bodyMedium?.copyWith(color: AppColors.barkMuted),
-              textAlign: TextAlign.center,
-            ),
-            if (hasFilters) ...[
-              const SizedBox(height: 20),
-              OutlinedButton.icon(
-                onPressed: onClearFilters,
-                icon: const Icon(Icons.filter_alt_off_outlined, size: 16),
-                label: const Text('Limpar filtros'),
-              ),
-            ],
-          ],
+    return _ScrollableCenteredContent(
+      children: [
+        const Icon(Icons.explore_off_outlined, size: 64, color: AppColors.sand),
+        const SizedBox(height: 16),
+        Text(
+          hasFilters
+              ? 'Nenhuma viagem com esses filtros'
+              : 'Nenhuma viagem encontrada',
+          style: tt.headlineSmall,
+          textAlign: TextAlign.center,
         ),
-      ),
+        const SizedBox(height: 8),
+        Text(
+          hasFilters
+              ? 'Tente remover alguns filtros para ver mais resultados.'
+              : 'Seja o primeiro a criar uma viagem!',
+          style: tt.bodyMedium?.copyWith(color: AppColors.barkMuted),
+          textAlign: TextAlign.center,
+        ),
+        if (hasFilters) ...[
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            onPressed: onClearFilters,
+            icon: const Icon(Icons.filter_alt_off_outlined, size: 16),
+            label: const Text('Limpar filtros'),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -742,47 +770,39 @@ class _ErrorState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tt = context.appText;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isAuth ? Icons.lock_outline_rounded : Icons.wifi_off_rounded,
-              size: 64,
-              color: AppColors.barkMuted,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              isAuth
-                  ? 'Sessão expirada'
-                  : 'Não foi possível carregar as viagens',
-              style: tt.headlineSmall,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              style: tt.bodyMedium?.copyWith(color: AppColors.barkMuted),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: const Text('Tentar novamente'),
-            ),
-            if (onReLogin != null) ...[
-              const SizedBox(height: 10),
-              OutlinedButton(
-                onPressed: onReLogin,
-                child: const Text('Entrar novamente'),
-              ),
-            ],
-          ],
+    return _ScrollableCenteredContent(
+      children: [
+        Icon(
+          isAuth ? Icons.lock_outline_rounded : Icons.wifi_off_rounded,
+          size: 64,
+          color: AppColors.barkMuted,
         ),
-      ),
+        const SizedBox(height: 16),
+        Text(
+          isAuth ? 'Sessão expirada' : 'Não foi possível carregar as viagens',
+          style: tt.headlineSmall,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          message,
+          style: tt.bodyMedium?.copyWith(color: AppColors.barkMuted),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 20),
+        ElevatedButton.icon(
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh_rounded, size: 18),
+          label: const Text('Tentar novamente'),
+        ),
+        if (onReLogin != null) ...[
+          const SizedBox(height: 10),
+          OutlinedButton(
+            onPressed: onReLogin,
+            child: const Text('Entrar novamente'),
+          ),
+        ],
+      ],
     );
   }
 }

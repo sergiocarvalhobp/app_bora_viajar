@@ -4,6 +4,9 @@ abstract final class AppConstants {
   /// Nome do cookie / chave no SecureStorage (JWT de sessão do backend).
   static const sessionKey = 'app_session_id';
 
+  /// ID token OIDC do Auth0 (necessário para logout federado com redirect).
+  static const auth0IdTokenKey = 'auth0_id_token';
+
   /// Header alternativo (alguns proxies repassam melhor que `Authorization`).
   static const sessionHeader = 'X-App-Session';
 

@@ -58,6 +58,7 @@ class _AppNotchShellState extends State<AppNotchShell> {
   @override
   Widget build(BuildContext context) {
     final hideBottomChrome = AppNotchShell.isChatRoute(context);
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return Theme(
       data: AppTheme.light().copyWith(
@@ -69,9 +70,15 @@ class _AppNotchShellState extends State<AppNotchShell> {
         body: widget.shell,
         bottomNavigationBar: hideBottomChrome
             ? null
-            : SafeArea(
-                bottom: true,
-                child: AnimatedNotchBottomBar(
+            : Visibility(
+                visible: !keyboardOpen,
+                maintainState: true,
+                maintainAnimation: true,
+                maintainSize: false,
+                maintainInteractivity: false,
+                child: SafeArea(
+                  bottom: true,
+                  child: AnimatedNotchBottomBar(
                   notchBottomBarController: _notchController,
                   color: Colors.white,
                   notchColor: AppColors.terra,
@@ -134,6 +141,7 @@ class _AppNotchShellState extends State<AppNotchShell> {
                   onTap: _onTabTap,
                 ),
               ),
+            ),
       ),
     );
   }

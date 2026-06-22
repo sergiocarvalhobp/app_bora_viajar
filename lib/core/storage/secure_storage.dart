@@ -73,9 +73,26 @@ class SessionStorage {
     await _storage.write(key: AppConstants.sessionKey, value: token);
   }
 
-  /// Remove o JWT — chamado no logout.
+  /// ID token OIDC do Auth0 — usado em `endSession` (logout federado).
+  Future<void> saveAuth0IdToken(String idToken) async {
+    await _storage.write(key: AppConstants.auth0IdTokenKey, value: idToken);
+  }
+
+  Future<String?> readAuth0IdToken() async {
+    try {
+      return await _storage.read(key: AppConstants.auth0IdTokenKey);
+    } on PlatformException {
+      await _storage.delete(key: AppConstants.auth0IdTokenKey);
+      return null;
+    }
+  }
+
+  /// Remove JWT e id token Auth0 — chamado no logout.
   Future<void> deleteToken() async {
-    await _storage.delete(key: AppConstants.sessionKey);
+    await Future.wait([
+      _storage.delete(key: AppConstants.sessionKey),
+      _storage.delete(key: AppConstants.auth0IdTokenKey),
+    ]);
   }
 
   /// Verifica rapidamente se há uma sessão salva (sem validar o JWT).
